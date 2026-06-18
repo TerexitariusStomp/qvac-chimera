@@ -86,7 +86,8 @@
     .cta-section p{color:#7a7468;font-size:15px;margin-bottom:28px}
 
     .footer-logos{display:flex;justify-content:center;align-items:center;gap:40px;margin-top:40px;flex-wrap:wrap}
-    .footer-logo{display:flex;align-items:center;gap:10px;color:#7a7468;font-size:13px;font-weight:500}
+    .footer-logo{display:flex;align-items:center;gap:10px;color:#7a7468;font-size:13px;font-weight:500;text-decoration:none;transition:.2s}
+    .footer-logo:hover{color:#e8e2d8}
     .footer-logo .box{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
 
     footer{padding:40px 0;border-top:1px solid rgba(255,255,255,.06);text-align:center;color:#5a5448;font-size:12px}
@@ -112,7 +113,7 @@
       <a href="#features">Features</a>
       <a href="#download">Download</a>
       <a href="https://github.com/TerexitariusStomp/qvac-chimera" target="_blank" rel="noopener">GitHub</a>
-      <a href="#download" class="nav-cta">Get the app</a>
+      <a href="#" class="nav-cta" id="navCTA" onclick="event.preventDefault(); autoDownload();">Get the app</a>
     </nav>
   </div>
 </header>
@@ -262,13 +263,13 @@
   <div class="container">
     <div class="section-header">
       <div class="section-label">How it works</div>
-      <h2>Install. Write. Earn.</h2>
+      <h2>Install. Configure. Earn.</h2>
       <p>Three layers. One app window.</p>
     </div>
     <div class="how-grid">
       <div class="how-step">
         <div class="how-num">1</div>
-        <h3>Install the app</h3>
+        <h3>Install a Chimera app</h3>
         <p>One-line installer for macOS, Linux, and Windows. Docker compose for servers. The supervisor spins up the container automatically.</p>
       </div>
       <div class="how-step">
@@ -290,26 +291,26 @@
     <h2 class="gradient-text">Built on proven open source<br>and P2P infrastructure.</h2>
     <p>QVAK · Pear P2P · Hypercore · Tauri · Capacitor</p>
     <div class="footer-logos">
-      <div class="footer-logo">
+      <a href="https://github.com/TerexitariusStomp/qvac-chimera" target="_blank" rel="noopener" class="footer-logo">
         <div class="box" style="background:rgba(0,229,255,.1);color:#00e5ff">Qv</div>
         QVAK
-      </div>
-      <div class="footer-logo">
+      </a>
+      <a href="https://docs.pears.com" target="_blank" rel="noopener" class="footer-logo">
         <div class="box" style="background:rgba(168,85,247,.1);color:#a855f7">P2</div>
         Pear P2P
-      </div>
-      <div class="footer-logo">
+      </a>
+      <a href="https://github.com/holepunchto/hypercore" target="_blank" rel="noopener" class="footer-logo">
         <div class="box" style="background:rgba(34,197,94,.1);color:#22c55e">Hy</div>
         Hypercore
-      </div>
-      <div class="footer-logo">
+      </a>
+      <a href="https://tauri.app" target="_blank" rel="noopener" class="footer-logo">
         <div class="box" style="background:rgba(249,115,22,.1);color:#f97316">Ta</div>
         Tauri
-      </div>
-      <div class="footer-logo">
+      </a>
+      <a href="https://capacitorjs.com" target="_blank" rel="noopener" class="footer-logo">
         <div class="box" style="background:rgba(59,130,246,.1);color:#3b82f6">Ca</div>
         Capacitor
-      </div>
+      </a>
     </div>
   </div>
 </section>
@@ -337,6 +338,10 @@
 
     document.getElementById('osIcon').textContent = icon;
     document.getElementById('osLabel').textContent = label;
+    const navCTA = document.getElementById('navCTA');
+    if (navCTA && os !== 'unknown') {
+      navCTA.textContent = 'Get the app (' + icon + ')';
+    }
     if (os !== 'unknown') {
       document.getElementById('osNote').textContent = 'Detected ' + os + '. Redirects to latest release.';
     } else {
