@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Zap, Cpu, Network, Database, Code2, Coins, Layers,
-  ChevronRight, ArrowRight, MessageCircle,
+  ChevronRight, ArrowRight, MessageCircle, Github,
   Terminal, Globe, Shield, Activity, Server,
   PlugZap, Sparkles, Wallet, ServerCrash, BookOpen
 } from 'lucide-react'
