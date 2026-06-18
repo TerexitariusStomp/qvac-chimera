@@ -17,6 +17,7 @@ import {
   Download,
   Smartphone
 } from 'lucide-react'
+import AIWriterExample from './AIWriterExample'
 
 export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNavigateToWiki }) {
   const [activeTab, setActiveTab] = useState('overview')
@@ -376,55 +377,9 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
         </div>
       </section>
 
-      {/* AI Writer — Inline on Landing Page */}
+      {/* AI Writer — Phone Emulator */}
       <section className="container mx-auto px-6 py-16">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-white text-center mb-12">
-            AI Writer
-          </h2>
-          <div className="card">
-            <p className="text-sm text-dark-300 mb-4">
-              Local AI running in QVAC. Generated docs are stored in Hypercore and synced via Pear P2P.
-              Backend: <span className="text-primary-400">QVAC (llama-3.2-1b-instruct)</span>
-            </p>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs text-dark-400 uppercase tracking-wide">Title (optional)</label>
-                    <input type="text" placeholder="Auto-generated" className="w-full mt-1 px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white text-sm" disabled />
-                  </div>
-                  <div>
-                    <label className="text-xs text-dark-400 uppercase tracking-wide">Prompt / Topic</label>
-                    <textarea rows={4} placeholder="Write about distributed systems..." className="w-full mt-1 px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white text-sm" disabled />
-                  </div>
-                  <button className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors" disabled>
-                    Generate
-                  </button>
-                </div>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-white mb-3">Generated Docs</h3>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {[
-                    ['Say Hello', '6/17/2026, 5:48:34 PM'],
-                    ['hi', '6/17/2026, 5:44:41 PM'],
-                    ['Distributed Systems', '6/17/2026, 5:35:23 PM'],
-                    ['Research On Raft Consensus', '6/16/2026, 1:49:28 AM'],
-                    ['Raft Consensus Algorithm', '6/16/2026, 1:12:01 AM'],
-                    ['Distributed Systems Consensus', '6/16/2026, 12:58:50 AM'],
-                    ['Test', '6/16/2026, 12:48:13 AM'],
-                  ].map(([title, date]) => (
-                    <div key={title + date} className="flex items-center justify-between p-3 bg-dark-900/50 rounded-lg">
-                      <span className="text-sm text-white">{title}</span>
-                      <span className="text-xs text-dark-400">{date}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <AIWriterExample onNavigateBack={() => {}} onNavigateToDashboard={onNavigateToDashboard} />
       </section>
 
       {/* Tech Stack Section */}
