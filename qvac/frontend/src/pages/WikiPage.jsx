@@ -197,30 +197,36 @@ export default function WikiPage({ onBack }) {
     setSaveStatus('Starting node...');
     try {
       const res = await fetch(`${API_BASE}/start`, { method: 'POST' });
-      const json = await res.json();
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : {};
       if (json.success) {
         setNodeRunning(true);
         setSaveStatus('Node started');
       } else {
         setSaveStatus(json.error || 'Start failed');
       }
-    } catch (e) { setSaveStatus('Start error'); }
-    setTimeout(() => setSaveStatus(''), 3000);
+    } catch (e) {
+      setSaveStatus('Miner requires local Chimera install — download from GitHub');
+    }
+    setTimeout(() => setSaveStatus(''), 6000);
   };
 
   const stopNode = async () => {
     setSaveStatus('Stopping node...');
     try {
       const res = await fetch(`${API_BASE}/stop`, { method: 'POST' });
-      const json = await res.json();
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : {};
       if (json.success) {
         setNodeRunning(false);
         setSaveStatus('Node stopped');
       } else {
         setSaveStatus(json.error || 'Stop failed');
       }
-    } catch (e) { setSaveStatus('Stop error'); }
-    setTimeout(() => setSaveStatus(''), 3000);
+    } catch (e) {
+      setSaveStatus('Node controls require local install');
+    }
+    setTimeout(() => setSaveStatus(''), 5000);
   };
 
   const fetchSwarmStatus = async () => {

@@ -222,21 +222,16 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
 
         <FadeUp delay={350}>
           <div className="flex items-center gap-4 flex-wrap justify-center mb-20">
-            <button
-              onClick={() => window.open('/wiki', '_blank')}
+            <a
+              href="https://github.com/TerexitariusStomp/qvac-chimera"
+              target="_blank"
+              rel="noopener noreferrer"
               className="group flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-400 to-cyan-300 text-black text-sm font-semibold hover:from-cyan-300 hover:to-cyan-200 transition-all shadow-[0_0_24px_#00e5ff28] hover:shadow-[0_0_36px_#00e5ff45]"
             >
-              <Code2 size={14} />
-              Open LLM Wiki
+              <Github size={14} />
+              Download on GitHub
               <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
-            </button>
-            <button
-              onClick={() => window.open('/wiki', '_blank')}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl border border-white/10 bg-white/3 text-white/65 text-sm hover:bg-white/6 hover:text-white hover:border-white/18 transition-all"
-            >
-              <Coins size={14} />
-              Run a Node
-            </button>
+            </a>
           </div>
         </FadeUp>
 
@@ -320,7 +315,6 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
               { icon: Network, title: 'Pear P2P', desc: 'Pear provides the peer-to-peer runtime and distribution layer, so apps and nodes can connect directly without traditional server infrastructure.', accent: 'purple' },
               { icon: Database, title: 'Hypercore storage', desc: 'Hypercore provides a secure, distributed append-only log with built-in replication, integrity, and synchronization.', accent: 'amber' },
               { icon: Cpu, title: 'Multi-network support', desc: 'A single node can watch multiple outside task networks and use available inference capacity wherever work appears.', accent: 'cyan' },
-              { icon: Globe, title: 'LLM Wiki', desc: 'The LLM Wiki is a local AI wiki and memory layer with markdown output, search, linked pages, and peer-to-peer sync.', accent: 'purple' },
               { icon: Activity, title: 'Real-time task monitor', desc: 'The node watches for available tasks in real time, so spare inference capacity can be routed to outside networks as soon as the app is idle.', accent: 'amber' },
             ].map((f, i) => (
               <FadeUp key={f.title} delay={i * 80}>
@@ -368,7 +362,6 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
                     { icon: Zap, title: 'QVAC inference layer', desc: 'Local AI processing for the app.', accent: 'cyan' },
                     { icon: Database, title: 'Hypercore data store', desc: 'Distributed append-only storage with replication.', accent: 'green' },
                     { icon: Network, title: 'Pear P2P network', desc: 'Direct peer-to-peer app and node communication.', accent: 'blue' },
-                    { icon: Globe, title: 'LLM Wiki', desc: 'Local AI memory, search, graph, and sync.', accent: 'orange' },
                     { icon: Activity, title: 'Task monitor', desc: 'Real-time detection of outside network tasks.', accent: 'purple' },
                   ].map(c => (
                     <div key={c.title} className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
