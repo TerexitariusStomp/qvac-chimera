@@ -90,6 +90,15 @@
         "note": "Nostr protocol multisig is shared across all apps. Funds are swept monthly and split between machine owner (70%) and app developer (30%).",
         "autoFundSweep": true
       }
+    },
+    "casper": {
+      "enabled": false,
+      "config": {
+        "providerKeyPem": "",
+        "network": "casper-test",
+        "description": "Casper testnet escrow vault bridge for inference jobs",
+        "rpcUrl": "http://localhost:7778/rpc"
+      }
     }
   },
   "multisig": {

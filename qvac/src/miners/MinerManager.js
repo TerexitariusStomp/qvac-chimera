@@ -4,6 +4,7 @@ import { ChutesMiner } from './ChutesMiner.js';
 import { FortytwoMiner } from './FortytwoMiner.js';
 import { EarnidleMiner } from './EarnidleMiner.js';
 import { RoutstrMiner } from './RoutstrMiner.js';
+import { CasperEscrowBridge } from './CasperEscrowBridge.js';
 
 export class MinerManager {
   constructor(config, dataStore, taskMonitor = null, inferenceLayer = null) {
@@ -55,6 +56,12 @@ export class MinerManager {
       const miner = new RoutstrMiner(this.config.routstr.config, this.inferenceLayer, this.evmAddress);
       await miner.initialize();
       this.miners.set('routstr', miner);
+    }
+
+    if (this.config.casper?.enabled) {
+      const miner = new CasperEscrowBridge(this.config.casper.config, this.inferenceLayer);
+      await miner.initialize();
+      this.miners.set('casper', miner);
     }
 
     this.logger.info(`Initialized ${this.miners.size} miners`);
