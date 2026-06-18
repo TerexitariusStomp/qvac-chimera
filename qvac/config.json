@@ -24,6 +24,7 @@
   "miners": {
     "enabled": true,
     "parallelMode": true,
+    "evmAddress": "0xa2bCA2e01Fc1631e5577994404C4e3d742b284bf",
     "priority": [
       "cortensor",
       "chutes",
@@ -44,6 +45,8 @@
     "chutes": {
       "enabled": true,
       "config": {
+        "evmAddress": "0xa2bCA2e01Fc1631e5577994404C4e3d742b284bf",
+        "walletAddress": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
         "network": "bittensor",
         "description": "Bittensor multisig (auto-generated from EVM) for Chutes GPU compute rewards",
         "multisigType": "substrate",
@@ -76,6 +79,8 @@
     "routstr": {
       "enabled": true,
       "config": {
+        "evmAddress": "0xa2bCA2e01Fc1631e5577994404C4e3d742b284bf",
+        "walletAddress": "nsec1qvacprotocolwalletabc123xyz789nostr000",
         "network": "nostr",
         "platform": "https://beta.platform.routstr.com/",
         "walletType": "nip-60",
