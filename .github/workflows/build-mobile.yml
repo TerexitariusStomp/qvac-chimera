@@ -1,0 +1,53 @@
+name: Build Mobile APK
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Capacitor CLI
+        run: npm install -g @capacitor/cli
+      - name: Install frontend deps
+        run: |
+          cd qvac/frontend
+          npm install
+      - name: Build frontend
+        run: |
+          cd qvac/frontend
+          npm run build
+      - name: Sync Capacitor Android
+        run: |
+          cd qvac/frontend
+          npx cap sync android
+      - name: Build debug APK
+        run: |
+          cd qvac/frontend/android
+          ./gradlew assembleDebug
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chimera-android-debug
+          path: qvac/frontend/android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Upload APK to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: qvac/frontend/android/app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

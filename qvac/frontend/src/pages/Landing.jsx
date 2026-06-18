@@ -6,6 +6,7 @@ import {
   PlugZap, Sparkles, Wallet, ServerCrash, BookOpen, Download
 } from 'lucide-react'
 import AIWriterExample from './AIWriterExample'
+import { MobileInstallPrompt } from '../components/MobileInstallPrompt'
 
 // ─── Visual design system ──────────────────────────────────────────────────
 function GridOverlay() {
@@ -431,8 +432,8 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
               { name: 'Linux (.deb)', ext: '.deb', icon: 'L', color: 'green', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest/download/Chimera_1.0.0_amd64.deb' },
               { name: 'Linux (.rpm)', ext: '.rpm', icon: 'L', color: 'green', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest/download/Chimera-1.0.0-1.x86_64.rpm' },
               { name: 'Linux (AppImage)', ext: '.AppImage', icon: 'L', color: 'green', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest' },
-              { name: 'Android', ext: '.sh', icon: 'A', color: 'amber', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest' },
-              { name: 'iOS', ext: '.txt', icon: 'i', color: 'amber', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest' },
+              { name: 'Android (APK)', ext: '.apk', icon: 'A', color: 'amber', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest' },
+              { name: 'iOS (PWA)', ext: 'Add to Home Screen', icon: 'i', color: 'amber', url: '#install' },
             ].map((p, i) => (
               <FadeUp key={p.name} delay={i * 80}>
                 <a
@@ -452,6 +453,12 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
                 </a>
               </FadeUp>
             ))}
+          </div>
+          <div className="max-w-md mx-auto mt-8 md:hidden">
+            <MobileInstallPrompt />
+          </div>
+          <div className="max-w-md mx-auto mt-8 hidden md:block">
+            <MobileInstallPrompt />
           </div>
         </div>
       </section>
