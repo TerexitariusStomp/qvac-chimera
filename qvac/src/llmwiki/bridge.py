@@ -18,7 +18,7 @@ from pathlib import Path
 import uuid
 from uuid import uuid4
 
-QVAC_API_URL = "http://localhost:3000/api/ai-write"
+QVAC_API_URL = "http://localhost:3002/api/ai-write"
 MAX_SOURCE_CHARS = 15_000
 
 GUIDE_OVERVIEW = """# Overview

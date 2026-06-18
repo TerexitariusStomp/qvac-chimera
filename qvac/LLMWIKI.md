@@ -19,7 +19,7 @@ Managed by `ecosystem.config.cjs`:
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| qvac-node | 3000 | AI inference + llmwiki index/search/graph endpoints |
+| qvac-node | 3002 | AI inference + llmwiki index/search/graph endpoints |
 | joplin-wiki | 8082 | Existing Joplin wiki server |
 
 ## Generate a Wiki Page
@@ -27,7 +27,7 @@ Managed by `ecosystem.config.cjs`:
 ### Via HTTP API (non-blocking)
 
 ```bash
-curl -X POST http://localhost:3000/api/llmwiki-create \
+curl -X POST http://localhost:3002/api/llmwiki-create \
   -H "Content-Type: application/json" \
   -d '{
     "topic": "raft consensus algorithm",
@@ -52,22 +52,22 @@ All indexing, search, and graph queries are served directly by the QVAC node:
 
 ### List Documents
 ```bash
-curl -s http://localhost:3000/api/llmwiki-docs
+curl -s http://localhost:3002/api/llmwiki-docs
 ```
 
 ### Search
 ```bash
-curl -s "http://localhost:3000/api/llmwiki-search?q=consensus"
-curl -s "http://localhost:3000/api/llmwiki-search?q=raft&tags=consensus&category=entities"
+curl -s "http://localhost:3002/api/llmwiki-search?q=consensus"
+curl -s "http://localhost:3002/api/llmwiki-search?q=raft&tags=consensus&category=entities"
 ```
 
 ### Graph / Links
 ```bash
 # Global stats
-curl -s "http://localhost:3000/api/llmwiki-graph"
+curl -s "http://localhost:3002/api/llmwiki-graph"
 
 # Per-node graph (outgoing + incoming links)
-curl -s "http://localhost:3000/api/llmwiki-graph?id=concepts/distributed-systems-consensus.md"
+curl -s "http://localhost:3002/api/llmwiki-graph?id=concepts/distributed-systems-consensus.md"
 ```
 
 ## Wiki Structure
