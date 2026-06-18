@@ -54,12 +54,12 @@ jobs:
           go-version: "1.21"
       - name: Build supervisor
         run: |
-          cd chimera-desktop/supervisor
+          cd apps/desktop/supervisor
           go build -o supervisor main.go
       - name: Copy supervisor binary
         run: |
-          mkdir -p chimera-desktop/src-tauri/bin
-          cp chimera-desktop/supervisor/supervisor chimera-desktop/src-tauri/bin/supervisor-x86_64-unknown-linux-gnu
+          mkdir -p apps/desktop/src-tauri/bin
+          cp apps/desktop/supervisor/supervisor apps/desktop/src-tauri/bin/supervisor-x86_64-unknown-linux-gnu
       - name: Build QVAC frontend
         run: |
           cd qvac/frontend
@@ -67,18 +67,18 @@ jobs:
           npm run build
       - name: Install desktop deps
         run: |
-          cd chimera-desktop
+          cd apps/desktop
           npm install
       - name: Build desktop frontend
         run: |
-          cd chimera-desktop
+          cd apps/desktop
           npm run build
       - name: Build Tauri
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          projectPath: ./chimera-desktop
+          projectPath: ./apps/desktop
           args: "--target x86_64-unknown-linux-gnu"
           releaseId: ${{ needs.create-release.outputs.release_id }}
 
@@ -97,12 +97,12 @@ jobs:
           go-version: "1.21"
       - name: Build supervisor
         run: |
-          cd chimera-desktop/supervisor
+          cd apps/desktop/supervisor
           go build -o supervisor.exe main.go
       - name: Copy supervisor binary
         run: |
-          mkdir -p chimera-desktop/src-tauri/bin
-          copy chimera-desktop/supervisor/supervisor.exe chimera-desktop/src-tauri/bin/supervisor-x86_64-pc-windows-msvc.exe
+          mkdir -p apps/desktop/src-tauri/bin
+          copy apps/desktop/supervisor/supervisor.exe apps/desktop/src-tauri/bin/supervisor-x86_64-pc-windows-msvc.exe
       - name: Build QVAC frontend
         run: |
           cd qvac/frontend
@@ -110,18 +110,18 @@ jobs:
           npm run build
       - name: Install desktop deps
         run: |
-          cd chimera-desktop
+          cd apps/desktop
           npm install
       - name: Build desktop frontend
         run: |
-          cd chimera-desktop
+          cd apps/desktop
           npm run build
       - name: Build Tauri
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          projectPath: ./chimera-desktop
+          projectPath: ./apps/desktop
           args: "--target x86_64-pc-windows-msvc"
           releaseId: ${{ needs.create-release.outputs.release_id }}
 
@@ -142,14 +142,14 @@ jobs:
           go-version: "1.21"
       - name: Build supervisor (universal)
         run: |
-          cd chimera-desktop/supervisor
+          cd apps/desktop/supervisor
           GOARCH=amd64 go build -o supervisor-amd64 main.go
           GOARCH=arm64 go build -o supervisor-arm64 main.go
           lipo -create -output supervisor supervisor-amd64 supervisor-arm64
       - name: Copy supervisor binary
         run: |
-          mkdir -p chimera-desktop/src-tauri/bin
-          cp chimera-desktop/supervisor/supervisor chimera-desktop/src-tauri/bin/supervisor-universal-apple-darwin
+          mkdir -p apps/desktop/src-tauri/bin
+          cp apps/desktop/supervisor/supervisor apps/desktop/src-tauri/bin/supervisor-universal-apple-darwin
       - name: Build QVAC frontend
         run: |
           cd qvac/frontend
@@ -157,17 +157,17 @@ jobs:
           npm run build
       - name: Install desktop deps
         run: |
-          cd chimera-desktop
+          cd apps/desktop
           npm install
       - name: Build desktop frontend
         run: |
-          cd chimera-desktop
+          cd apps/desktop
           npm run build
       - name: Build Tauri (universal)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          projectPath: ./chimera-desktop
+          projectPath: ./apps/desktop
           args: "--target universal-apple-darwin"
           releaseId: ${{ needs.create-release.outputs.release_id }}

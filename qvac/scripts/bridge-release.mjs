@@ -6,6 +6,7 @@ const { PrivateKey, KeyAlgorithm, CLValue, Args, DeployHeader, ExecutableDeployI
 const RPC_URL = 'http://localhost:7778/rpc';
 const CHAIN_NAME = 'casper-test';
 const ESCROW_PEM_PATH = '/tmp/escrow-account.pem';
+const TRANSFER_WASM_PATH = '/tmp/transfer_session.wasm';
 
 const CONTRACT_HASH = 'b3f8b9643cc190448139525491b3196df072e30c703610261336bb97202b5e27';
 
@@ -15,26 +16,8 @@ function hexToBytes(hex) {
   return bytes;
 }
 
-async function getJobState(jobId) {
-  const argsMap = {
-    job_id: CLValue.newCLString(jobId),
-  };
-  const args = Args.fromMap(argsMap);
-  const contractHashObj = sdk.ContractHash.newContract(CONTRACT_HASH);
-  const storedContract = new sdk.StoredContractByHash(contractHashObj, 'get_job', args);
-  const session = new ExecutableDeployItem();
-  session.storedContractByHash = storedContract;
-  const payment = ExecutableDeployItem.standardPayment('10000000000');
-
-  const privateKey = PrivateKey.fromPem(readFileSync(ESCROW_PEM_PATH, 'utf8'), KeyAlgorithm.SECP256K1);
-  const publicKey = privateKey.publicKey;
-  const header = DeployHeader.default();
-  header.account = publicKey;
-  header.chainName = CHAIN_NAME;
-  const deploy = Deploy.makeDeploy(header, payment, session);
-  deploy.sign(privateKey);
-
-  const deployResult = await fetch(RPC_URL, {
+async function sendDeploy(deploy) {
+  const res = await fetch(RPC_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -44,36 +27,27 @@ async function getJobState(jobId) {
       params: { deploy: Deploy.toJSON(deploy) }
     })
   });
-  const deployData = await deployResult.json();
-  if (deployData.error) {
-    console.error('get_job deploy failed:', deployData.error);
-    return null;
-  }
+  return await res.json();
+}
 
-  const deployHash = deployData.result.deploy_hash;
-  console.log('get_job deploy hash:', deployHash);
-
-  // Wait for execution
-  await new Promise(r => setTimeout(r, 20000));
-
-  const infoRes = await fetch(RPC_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'info_get_deploy',
-      params: { deploy_hash: deployHash }
-    })
-  });
-  const infoData = await infoRes.json();
-  const execution_result = infoData.result?.execution_info?.execution_result;
-  if (execution_result?.Version2) {
-    const v2 = execution_result.Version2;
-    console.log('get_job error:', v2.error_message);
-    // Look for return value in effects (not directly available, need to parse)
-    // For now we rely on dictionary queries or direct state inspection
-    return { error: v2.error_message, deployHash };
+async function waitForDeploy(deployHash) {
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    const res = await fetch(RPC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'info_get_deploy',
+        params: { deploy_hash: deployHash }
+      })
+    });
+    const data = await res.json();
+    const execution_result = data.result?.execution_info?.execution_result;
+    if (execution_result?.Version2) {
+      return execution_result.Version2;
+    }
   }
   return null;
 }
@@ -82,36 +56,32 @@ async function transferToProvider(providerAccountHash, amount) {
   const privateKey = PrivateKey.fromPem(readFileSync(ESCROW_PEM_PATH, 'utf8'), KeyAlgorithm.SECP256K1);
   const publicKey = privateKey.publicKey;
 
+  const wasmBytes = readFileSync(TRANSFER_WASM_PATH);
   const args = Args.fromMap({
     target: CLValue.newCLByteArray(hexToBytes(providerAccountHash)),
     amount: CLValue.newCLUInt512(amount),
-    id: CLValue.newCLOption(null, CLType.U64),
   });
 
-  // Use a native transfer deploy instead of session code
+  const session = ExecutableDeployItem.newModuleBytes(wasmBytes, args);
+  const payment = ExecutableDeployItem.standardPayment('10000000000');
   const header = DeployHeader.default();
   header.account = publicKey;
   header.chainName = CHAIN_NAME;
+  const deploy = Deploy.makeDeploy(header, payment, session);
+  deploy.sign(privateKey);
 
-  // Native transfer: no session code, just transfer args in payment? No...
-  // Actually for native transfer we need to use a specific approach
-  // Casper SDK allows native transfers via Deploy.makeTransferDeploy or similar
-  // But casper-js-sdk v2 might use Deploy.makeDeploy with transfer args
+  console.log('Submitting transfer to provider:', providerAccountHash, 'amount:', amount);
+  const result = await sendDeploy(deploy);
+  if (result.error) {
+    console.error('Transfer deploy failed:', result.error);
+    return null;
+  }
+  console.log('Transfer deploy hash:', result.result.deploy_hash);
 
-  // Let's use a simpler approach: StoredContractByHash call to mark_released,
-  // and a separate native transfer deploy
-
-  // For native transfer, use the Deploy constructor with transfer info
-  // Actually casper-js-sdk doesn't have a simple native transfer in v2
-  // We'll use a workaround: create a StoredContractByName or just use standard session
-
-  // Actually the simplest is to create a small session deploy that calls transfer
-  // But for now, let's use a module bytes deploy with minimal code
-  // Or better: use the SDK's transfer support if available
-
-  console.log('Provider transfer would go to:', providerAccountHash, 'amount:', amount);
-  // TODO: implement actual transfer
-  return null;
+  const v2 = await waitForDeploy(result.result.deploy_hash);
+  console.log('Transfer error_message:', v2?.error_message);
+  console.log('Transfer consumed:', v2?.consumed);
+  return { deployHash: result.result.deploy_hash, error: v2?.error_message };
 }
 
 async function markReleased(jobId, providerPayout) {
@@ -134,40 +104,53 @@ async function markReleased(jobId, providerPayout) {
   const deploy = Deploy.makeDeploy(header, payment, session);
   deploy.sign(privateKey);
 
-  const deployResult = await fetch(RPC_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'account_put_deploy',
-      params: { deploy: Deploy.toJSON(deploy) }
-    })
-  });
-  return await deployResult.json();
+  console.log('Submitting mark_released for job:', jobId, 'payout:', providerPayout);
+  const result = await sendDeploy(deploy);
+  if (result.error) {
+    console.error('mark_released deploy failed:', result.error);
+    return null;
+  }
+  console.log('mark_released deploy hash:', result.result.deploy_hash);
+
+  const v2 = await waitForDeploy(result.result.deploy_hash);
+  console.log('mark_released error_message:', v2?.error_message);
+  return { deployHash: result.result.deploy_hash, error: v2?.error_message };
 }
 
 async function main() {
   const jobId = process.argv[2];
-  if (!jobId) {
-    console.error('Usage: node bridge-release.mjs <job_id>');
+  const providerAccount = process.argv[3];
+  const payout = process.argv[4];
+
+  if (!jobId || !providerAccount || !payout) {
+    console.error('Usage: node bridge-release.mjs <job_id> <provider_account_hash> <payout_amount>');
+    console.error('  Example: node bridge-release.mjs job:e39a...:0 f227d4fb... 900');
     process.exit(1);
   }
 
-  console.log('Releasing funds for job:', jobId);
-  console.log('Escrow PEM path:', ESCROW_PEM_PATH);
+  console.log('========================================');
+  console.log('Bridge Release (server-side only)');
+  console.log('Job ID:', jobId);
+  console.log('Provider:', providerAccount);
+  console.log('Payout:', payout);
+  console.log('Contract:', CONTRACT_HASH);
+  console.log('========================================');
 
-  // Step 1: Query job state via get_job
-  // Note: get_job returns a string, but we can't easily parse it from deploy effects
-  // For now we use direct dictionary queries instead
+  // Step 1: Transfer funds from escrow to provider via session code
+  const transferResult = await transferToProvider(providerAccount, payout);
+  if (transferResult?.error) {
+    console.error('Transfer failed, aborting mark_released');
+    process.exit(1);
+  }
 
-  // Step 2: Call mark_released (requires escrow caller)
-  // We need to know provider_payout. For now use hardcoded or query from dictionaries.
-  const providerPayout = '900'; // placeholder - should compute from job amount - fee
+  // Step 2: Mark job as released on contract
+  const releaseResult = await markReleased(jobId, payout);
+  if (releaseResult?.error) {
+    console.error('mark_released failed');
+    process.exit(1);
+  }
 
-  console.log('Calling mark_released with payout:', providerPayout);
-  const result = await markReleased(jobId, providerPayout);
-  console.log('mark_released result:', JSON.stringify(result, null, 2));
+  console.log('Release complete!');
 }
 
 main().catch(console.error);

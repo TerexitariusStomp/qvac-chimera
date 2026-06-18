@@ -26,9 +26,9 @@ A standalone QVAC inference node running `@qvac/sdk` inside a hardened Docker co
 
 | Platform | Install | Status |
 |---|---|---|
-| **Linux (.deb)** | `sudo dpkg -i chimera-desktop/src-tauri/target/release/bundle/deb/Chimera_1.0.0_amd64.deb` | Ready |
-| **Linux (.rpm)** | `sudo rpm -i chimera-desktop/src-tauri/target/release/bundle/rpm/Chimera-1.0.0-1.x86_64.rpm` | Ready |
-| **Linux (binary)** | `./chimera-desktop/src-tauri/target/release/chimera-desktop` | Ready |
+| **Linux (.deb)** | `sudo dpkg -i apps/desktop/src-tauri/target/release/bundle/deb/Chimera_1.0.0_amd64.deb` | Ready |
+| **Linux (.rpm)** | `sudo rpm -i apps/desktop/src-tauri/target/release/bundle/rpm/Chimera-1.0.0-1.x86_64.rpm` | Ready |
+| **Linux (binary)** | `./apps/desktop/src-tauri/target/release/chimera-desktop` | Ready |
 | **macOS** | Build from source (see below) | Source |
 | **Windows** | Build from source (see below) | Source |
 | **iOS** | App Store submission pending | Capacitor configured |
@@ -47,10 +47,10 @@ docker-compose up -d
 
 ```bash
 # Install .deb
-sudo dpkg -i chimera-desktop/src-tauri/target/release/bundle/deb/Chimera_1.0.0_amd64.deb
+sudo dpkg -i apps/desktop/src-tauri/target/release/bundle/deb/Chimera_1.0.0_amd64.deb
 
 # Or run binary directly
-./chimera-desktop/src-tauri/target/release/chimera-desktop
+./apps/desktop/src-tauri/target/release/chimera-desktop
 ```
 
 ## Quick Start (Mobile — iOS/Android)
@@ -88,7 +88,7 @@ docker-compose up --build -d
 
 ### 2. Desktop App (Tauri)
 ```bash
-cd chimera-desktop
+cd apps/desktop
 npm install
 npm run tauri:build
 # Output: src-tauri/target/release/bundle/
@@ -118,21 +118,29 @@ npx cap open android  # Android Studio → Generate Signed Bundle
 
 ```
 qvac-chimera/
-├── qvac/                     # Backend + frontend (Wiki)
+├── website/                  # Marketing site + demo wiki + earnings
+│   ├── index.html            # Landing page
+│   ├── demo-wiki.html        # Read-only LLM Wiki demo
+│   └── earnings.html         # Earnings dashboard
+├── apps/
+│   └── desktop/              # Tauri desktop app (Linux, macOS, Windows)
+│       ├── src/              # React frontend
+│       ├── src-tauri/        # Rust shell + Go sidecar
+│       └── dist/             # Copied from qvac/frontend/dist
+├── qvac/                     # Backend node + LLM Wiki frontend
 │   ├── src/                  # Node.js backend
 │   │   ├── core/             # NodeManager, WalletManager
-│   │   ├── inference/        # QVACInferenceLayer (@qvac/sdk)
+│   │   ├── inference/        # QVACInferenceLayer
 │   │   ├── miners/           # Cortensor, Chutes, etc.
 │   │   ├── p2p/              # Pear P2P networking
 │   │   ├── web/              # HTTP server + API routes
 │   │   └── scheduler/        # TaskMonitor
-│   ├── frontend/             # React app (WikiPage only)
+│   ├── frontend/             # React app (LLM Wiki)
 │   ├── Dockerfile            # Hardened container
 │   └── docker-compose.yml    # One-command deploy
-├── chimera-desktop/          # Tauri desktop shell
-│   ├── src/                  # React + Tauri commands
-│   ├── src-tauri/            # Rust core + sidecar
-│   └── dist/                 # Copied from qvac/frontend/dist
+├── sdk/                      # @chimera/sdk — build your own app
+│   ├── src/
+│   └── examples/
 └── README.md
 ```
 
