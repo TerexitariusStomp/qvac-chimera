@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 
-const API_BASE = '/api'; // v2025-06-17-refresh
+const API_BASE = (window.location.protocol === 'http:' || window.location.protocol === 'https:') ? '/api' : 'http://localhost:3002/api'; // v2025-06-17-refresh
 
 /* ─── Simple markdown renderer (no external deps) ─── */
 function mdToHtml(text) {

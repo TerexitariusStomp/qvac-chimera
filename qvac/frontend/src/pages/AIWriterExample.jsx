@@ -4,7 +4,7 @@ import {
   FileText, ChevronRight, Lock, Network, Download, Book
 } from 'lucide-react';
 
-const API_BASE = '/api';
+const API_BASE = (window.location.protocol === 'http:' || window.location.protocol === 'https:') ? '/api' : 'http://localhost:3002/api';
 
 export default function AIWriterExample({ onNavigateBack, onNavigateToDashboard }) {
   const [activeScreen, setActiveScreen] = useState('write');

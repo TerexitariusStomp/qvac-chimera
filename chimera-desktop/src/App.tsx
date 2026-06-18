@@ -7,36 +7,16 @@ function App() {
   const [supervisorRunning, setSupervisorRunning] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const checkServer = async () => {
-    try {
-      const res = await fetch("http://localhost:3002/api/status");
-      if (res.ok) {
-        window.location.replace("http://localhost:3002");
-        return true;
-      }
-    } catch { /* not ready yet */ }
-    return false;
-  };
-
   const startSupervisor = async () => {
     setLoading(true);
     try {
       const res = await invoke<string>("start_supervisor");
       console.log(res);
       setSupervisorRunning(true);
-      // Poll until server is ready, then redirect to full web UI
-      let attempts = 0;
-      const poll = setInterval(async () => {
-        attempts++;
-        if (await checkServer() || attempts > 30) {
-          clearInterval(poll);
-          if (attempts > 30) setLoading(false);
-        }
-      }, 2000);
     } catch (e) {
       console.error("Failed to start supervisor:", e);
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   const stopSupervisor = async () => {
@@ -51,13 +31,7 @@ function App() {
   };
 
   useEffect(() => {
-    invoke<boolean>("supervisor_status").then(async (running) => {
-      setSupervisorRunning(running);
-      if (running) {
-        // Server already running — redirect to full web UI immediately
-        await checkServer();
-      }
-    }).catch(() => {});
+    invoke<boolean>("supervisor_status").then(setSupervisorRunning).catch(() => {});
   }, []);
 
   return (

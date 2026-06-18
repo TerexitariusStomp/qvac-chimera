@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const API_BASE = '/api';
+const API_BASE = (window.location.protocol === 'http:' || window.location.protocol === 'https:') ? '/api' : 'http://localhost:3002/api';
 
 export default function AIWriter() {
   const [prompt, setPrompt] = useState('');

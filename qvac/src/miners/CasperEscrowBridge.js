@@ -1,7 +1,8 @@
 import { Logger } from '../core/Logger.js';
 import pkg from 'casper-js-sdk';
 
-const { PrivateKey, PublicKey, KeyAlgorithm, DeployUtil, RuntimeArgs, CLValue, CLOption, CLU64, CLString, CLByteArray } = pkg;
+const sdk = pkg;
+const { PrivateKey, PublicKey, KeyAlgorithm, CLValue, Args, ContractHash, StoredContractByHash, ExecutableDeployItem, DeployHeader, Deploy, RpcClient, HttpHandler } = sdk;
 
 const RPC_URL = 'http://localhost:7778/rpc';
 const CHAIN_NAME = 'casper-test';
@@ -25,15 +26,6 @@ const STATE = {
   DISPUTE_CONSUMER_WON: 8,
   DISPUTE_PROVIDER_WON: 9,
 };
-
-function accountHashToBytes(hashStr) {
-  const hex = hashStr.replace('account-hash-', '').replace('hash-', '');
-  const bytes = [];
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes.push(parseInt(hex.substring(i, i + 2), 16));
-  }
-  return new Uint8Array(bytes);
-}
 
 async function stringToHash(str) {
   const { createHash } = await import('crypto');
@@ -61,13 +53,25 @@ async function getDictionaryItem(contractHash, dictName, dictKey) {
   const stateRootHash = stateRoot.result?.state_root_hash;
   if (!stateRootHash) return null;
 
+  // Some nodes return dictionary_item key differently; try both formats
+  const dictItemKey = dictUref + '/' + dictKey;
   const dictRes = await rpcCall('state_get_dictionary_item', {
     state_root_hash: stateRootHash,
     dictionary_item: {
-      Dictionary: dictUref + '/' + dictKey,
+      Dictionary: dictItemKey,
     },
   });
-  return dictRes.result?.stored_value?.CLValue?.parsed || null;
+  const parsed = dictRes.result?.stored_value?.CLValue?.parsed;
+  if (parsed !== undefined) return parsed;
+
+  // Fallback: try with URef separately
+  const dictRes2 = await rpcCall('state_get_dictionary_item', {
+    state_root_hash: stateRootHash,
+    dictionary_item: {
+      URef: dictUref,
+    },
+  });
+  return dictRes2.result?.stored_value?.CLValue?.parsed || null;
 }
 
 export class CasperEscrowBridge {
@@ -260,25 +264,22 @@ export class CasperEscrowBridge {
       attempts++;
 
       try {
-        const jobStr = await this.callEntryPointRead(CONTRACTS.escrowVault, 'get_job', { job_id: jobId });
-        if (!jobStr) return;
-
-        const params = new URLSearchParams(jobStr);
-        const state = params.get('state') || '';
+        const state = await this.getJobState(jobId);
+        if (state === null) return;
 
         this.logger.info(`Job ${jobId} monitor: state=${state} (attempt ${attempts})`);
 
-        if (state === 'settled' || state === 'consumer_confirm') {
+        if (state === STATE.SETTLED || state === STATE.CONSUMER_CONFIRM) {
           await this.claimPayment(jobId);
           return;
         }
 
-        if (state === 'refunded') {
+        if (state === STATE.REFUNDED) {
           this.logger.warn(`Job ${jobId} was refunded`);
           return;
         }
 
-        if (state === 'disputed') {
+        if (state === STATE.DISPUTED) {
           this.logger.warn(`Job ${jobId} is disputed`);
           return;
         }
@@ -321,13 +322,14 @@ export class CasperEscrowBridge {
     this.logger.info(`claim_payment sent for ${jobId}`);
   }
 
-  async sendDeploy(contractHash, entryPoint, argsMap) {
+  async sendDeploy(contractHash, entryPoint, argsMap, payment = '10000000000') {
     const publicKey = this.providerKey.publicKey;
-    const deploy = this.buildDeploy(publicKey, contractHash, entryPoint, argsMap);
+    const deploy = this.buildDeploy(publicKey, contractHash, entryPoint, argsMap, payment);
     deploy.sign(this.providerKey);
 
-    const deployJson = DeployUtil.deployToJson(deploy);
-    const res = await rpcCall('account_put_deploy', { deploy: deployJson.deploy });
+    // Use raw RPC to submit deploy
+    const deployJSON = Deploy.toJSON(deploy);
+    const res = await rpcCall('account_put_deploy', { deploy: deployJSON });
 
     if (res.error) {
       throw new Error(`Deploy failed: ${res.error.message}`);
@@ -338,29 +340,21 @@ export class CasperEscrowBridge {
   }
 
   buildDeploy(publicKey, contractHash, entryPoint, argsMap, payment = '10000000000') {
-    const runtimeArgs = RuntimeArgs.fromMap(argsMap);
-    const deploy = DeployUtil.makeDeploy(
-      new DeployUtil.DeployParams(
-        publicKey,
-        CHAIN_NAME,
-        1,
-        1800000
-      ),
-      DeployUtil.ExecutableDeployItem.newStoredContractByHash(
-        Uint8Array.from(Buffer.from(contractHash, 'hex')),
-        entryPoint,
-        runtimeArgs
-      ),
-      DeployUtil.standardPayment(payment)
-    );
-    return deploy;
+    const args = Args.fromMap(argsMap);
+    const contractHashObj = ContractHash.newContract(contractHash);
+    const storedContract = new StoredContractByHash(contractHashObj, entryPoint, args);
+    const session = new ExecutableDeployItem();
+    session.storedContractByHash = storedContract;
+    const paymentItem = ExecutableDeployItem.standardPayment(payment);
+    const header = DeployHeader.default();
+    header.account = publicKey;
+    header.chainName = CHAIN_NAME;
+    return Deploy.makeDeploy(header, paymentItem, session);
   }
 
-  async callEntryPointRead(contractHash, entryPoint, args) {
-    // get_job returns data via runtime::ret, which requires a deploy
-    // For read-only queries we can use dictionary reads instead
-    // This is a simplified version - for get_job we parse dictionaries
-    return null;
+  async getJobState(jobId) {
+    const stateVal = await getDictionaryItem(CONTRACTS.escrowVault, 'ev2_jobs', `${jobId}:state`);
+    return stateVal !== null ? Number(stateVal) : null;
   }
 
   getStatus() {
