@@ -558,6 +558,39 @@ print(result.text_content)
     ok(res, { message: 'Mining stopped', running: false });
   }
 
+  async handleMinerTest(req, res) {
+    if (!this.nodeManager?.minerManager) { serviceUnavailable(res, 'Miner manager not available'); return; }
+    const mm = this.nodeManager.minerManager;
+    const results = [];
+    const testTask = { id: `test-${Date.now()}`, prompt: 'What is 2+2?', maxTokens: 32, temperature: 0.5 };
+
+    for (const [name, miner] of mm.miners) {
+      const started = Date.now();
+      try {
+        const result = await miner.onInferenceTask(testTask);
+        results.push({
+          miner: name,
+          success: result.success,
+          output: result.result?.output?.slice(0, 200) || result.output?.slice(0, 200) || null,
+          latency: Date.now() - started,
+          fallback: result.result?.fallback || result.fallback || false,
+          error: result.error || null
+        });
+      } catch (err) {
+        results.push({ miner: name, success: false, latency: Date.now() - started, error: err.message });
+      }
+    }
+
+    const allPassed = results.every(r => r.success);
+    ok(res, {
+      tested: results.length,
+      passed: results.filter(r => r.success).length,
+      allPassed,
+      task: testTask.id,
+      results
+    });
+  }
+
   /* ─── Private helpers ─── */
 
   async _spawnBridgeJob({ topic, customPrompt, category, tags, description, links = [], fileSource = '' }) {

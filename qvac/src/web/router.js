@@ -39,6 +39,7 @@ export const ROUTES = [
   // Miner
   ['POST', '/api/start',              'handleStart'],
   ['POST', '/api/stop',               'handleStop'],
+  ['POST', '/api/miner-test',         'handleMinerTest'],
 ];
 
 /**
