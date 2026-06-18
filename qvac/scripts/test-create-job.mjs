@@ -11,7 +11,7 @@ oUQDQgAEJ9jdXMqmAORbNuWY2Q74wmtsZ++Bvf696PpYOZepHqWCFmTFZDzW+JYO
 fZf7vQid4otudHLFJBWkiazcayJz9g==
 -----END EC PRIVATE KEY-----`;
 
-const CONTRACT_HASH = '2ac43f312beafdf9437af09e6b234281d25ff6762960f1f6d36ee20313f01465';
+const CONTRACT_HASH = '9b6e673b63fb3c6787174fb77f24bbf65f9936fe3b5f413d31790867ef399487';
 
 function hexToBytes(hex) {
   const bytes = new Uint8Array(32);
@@ -26,32 +26,12 @@ async function main() {
   
   console.log('Account hash:', accountHashHex);
   
-  const resp = await fetch(RPC_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'state_get_account_info',
-      params: { account_identifier: 'account-hash-' + accountHashHex }
-    })
-  });
-  const data = await resp.json();
-  const mainPurse = data.result?.account?.main_purse;
-  console.log('Main purse:', mainPurse);
-  
-  if (!mainPurse) {
-    console.error('No main purse found');
-    return;
-  }
-  
   const argsMap = {
     consumer: CLValue.newCLByteArray(hexToBytes(accountHashHex)),
     provider: CLValue.newCLByteArray(hexToBytes('f227d4fb7c50164d363c5461ad0044ef8f3b8ad5ee7072b87384e101a2a4263d')),
     amount: CLValue.newCLUInt512('1000'),
     provider_fee_bps: CLValue.newCLUint64('100'),
-    order_id: CLValue.newCLString('test-job-1'),
-    caller_purse: CLValue.newCLUref(sdk.URef.fromString(mainPurse)),
+    order_id: CLValue.newCLString('test-job-2'),
   };
   
   const args = Args.fromMap(argsMap);
