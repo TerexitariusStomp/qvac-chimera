@@ -326,7 +326,7 @@
   (function() {
     const ua = navigator.userAgent;
     const platform = navigator.platform;
-    let os = 'unknown', icon = '↓', label = 'Download for your OS', url = 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest';
+    let os = 'unknown', icon = '↓', label = 'Download for your OS';
 
     if (/Win/.test(platform) || /Windows/.test(ua)) {
       os = 'windows'; icon = 'W'; label = 'Download for Windows';
@@ -343,16 +343,52 @@
       navCTA.textContent = 'Get the app (' + icon + ')';
     }
     if (os !== 'unknown') {
-      document.getElementById('osNote').textContent = 'Detected ' + os + '. Redirects to latest release.';
+      document.getElementById('osNote').textContent = 'Detected ' + os + '. Click to download.';
     } else {
       document.getElementById('osNote').textContent = 'Could not detect OS. Click to see all releases.';
     }
     window._chimeraOS = os;
-    window._chimeraURL = url;
   })();
 
-  function autoDownload() {
-    window.open(window._chimeraURL || 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest', '_blank');
+  function pickAsset(assets, os) {
+    const names = assets.map(a => a.name.toLowerCase());
+    if (os === 'windows') {
+      return assets.find(a => a.name.endsWith('.msi')) || assets.find(a => a.name.endsWith('.exe'));
+    }
+    if (os === 'macos') {
+      return assets.find(a => a.name.endsWith('.dmg'));
+    }
+    if (os === 'linux') {
+      return assets.find(a => a.name.endsWith('.deb')) || assets.find(a => a.name.endsWith('.AppImage'));
+    }
+    return null;
+  }
+
+  async function autoDownload() {
+    const os = window._chimeraOS || 'unknown';
+    const fallback = 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest';
+    if (os === 'unknown') {
+      window.open(fallback, '_blank');
+      return;
+    }
+    try {
+      const res = await fetch('https://api.github.com/repos/TerexitariusStomp/qvac-chimera/releases/latest');
+      if (!res.ok) throw new Error('API error');
+      const data = await res.json();
+      const asset = pickAsset(data.assets || [], os);
+      if (asset && asset.browser_download_url) {
+        const a = document.createElement('a');
+        a.href = asset.browser_download_url;
+        a.download = asset.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        window.open(fallback, '_blank');
+      }
+    } catch (e) {
+      window.open(fallback, '_blank');
+    }
   }
 </script>
 
