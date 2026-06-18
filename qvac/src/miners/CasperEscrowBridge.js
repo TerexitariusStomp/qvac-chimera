@@ -45,7 +45,13 @@ async function getDictionaryItem(contractHash, dictName, dictKey) {
   const entityRes = await rpcCall('state_get_entity', {
     entity_identifier: { ContractHash: 'contract-' + contractHash },
   });
-  const namedKeys = entityRes.result?.entity?.AddressableEntity?.entity?.NamedKeys || [];
+  // Handle both old (AddressableEntity) and new (Contract) response formats
+  let namedKeys = [];
+  if (entityRes.result?.entity?.AddressableEntity?.entity?.NamedKeys) {
+    namedKeys = entityRes.result.entity.AddressableEntity.entity.NamedKeys;
+  } else if (entityRes.result?.entity?.Contract?.contract?.named_keys) {
+    namedKeys = entityRes.result.entity.Contract.contract.named_keys;
+  }
   const dictUref = namedKeys.find(k => k.name === dictName)?.key;
   if (!dictUref) return null;
 
@@ -53,25 +59,17 @@ async function getDictionaryItem(contractHash, dictName, dictKey) {
   const stateRootHash = stateRoot.result?.state_root_hash;
   if (!stateRootHash) return null;
 
-  // Some nodes return dictionary_item key differently; try both formats
-  const dictItemKey = dictUref + '/' + dictKey;
+  // Use URef dictionary_identifier format (Casper 2.x)
   const dictRes = await rpcCall('state_get_dictionary_item', {
     state_root_hash: stateRootHash,
-    dictionary_item: {
-      Dictionary: dictItemKey,
+    dictionary_identifier: {
+      URef: {
+        seed_uref: dictUref,
+        dictionary_item_key: dictKey,
+      },
     },
   });
-  const parsed = dictRes.result?.stored_value?.CLValue?.parsed;
-  if (parsed !== undefined) return parsed;
-
-  // Fallback: try with URef separately
-  const dictRes2 = await rpcCall('state_get_dictionary_item', {
-    state_root_hash: stateRootHash,
-    dictionary_item: {
-      URef: dictUref,
-    },
-  });
-  return dictRes2.result?.stored_value?.CLValue?.parsed || null;
+  return dictRes.result?.stored_value?.CLValue?.parsed ?? null;
 }
 
 export class CasperEscrowBridge {
@@ -161,8 +159,8 @@ export class CasperEscrowBridge {
     if (!this.isRunning) return;
 
     try {
-      // Get pending jobs list
-      const pending = await getDictionaryItem(CONTRACTS.escrowVault, 'ev2_pending_jobs', 'list');
+      // Get pending jobs list (named key is 'pending_jobs')
+      const pending = await getDictionaryItem(CONTRACTS.escrowVault, 'pending_jobs', 'list');
       if (!pending || !Array.isArray(pending) || pending.length === 0) return;
 
       this.logger.info(`Found ${pending.length} pending job(s)`);
@@ -178,11 +176,11 @@ export class CasperEscrowBridge {
 
   async handleJob(jobId) {
     try {
-      // Read job state directly from dictionary
-      const stateVal = await getDictionaryItem(CONTRACTS.escrowVault, 'ev2_jobs', `${jobId}:state`);
-      const providerVal = await getDictionaryItem(CONTRACTS.escrowVault, 'ev2_jobs', `${jobId}:provider`);
-      const consumerVal = await getDictionaryItem(CONTRACTS.escrowVault, 'ev2_jobs', `${jobId}:consumer`);
-      const amountVal = await getDictionaryItem(CONTRACTS.escrowVault, 'ev2_jobs', `${jobId}:amount`);
+      // Read job state directly from dictionary (named keys: jobs_dict, pending_jobs, etc.)
+      const stateVal = await getDictionaryItem(CONTRACTS.escrowVault, 'jobs_dict', `${jobId}:state`);
+      const providerVal = await getDictionaryItem(CONTRACTS.escrowVault, 'jobs_dict', `${jobId}:provider`);
+      const consumerVal = await getDictionaryItem(CONTRACTS.escrowVault, 'jobs_dict', `${jobId}:consumer`);
+      const amountVal = await getDictionaryItem(CONTRACTS.escrowVault, 'jobs_dict', `${jobId}:amount`);
 
       if (stateVal === null || providerVal === null) {
         this.logger.warn(`Could not fetch job details for ${jobId}`);
@@ -211,7 +209,7 @@ export class CasperEscrowBridge {
       await this.providerAck(jobId);
 
       // Get the request hash (order_id/prompt)
-      const requestHash = await getDictionaryItem(CONTRACTS.escrowVault, 'ev2_jobs', `${jobId}:request_hash`);
+      const requestHash = await getDictionaryItem(CONTRACTS.escrowVault, 'jobs_dict', `${jobId}:request_hash`);
       this.logger.info(`Job ${jobId} request: ${requestHash}`);
 
       // Run inference
@@ -363,7 +361,7 @@ export class CasperEscrowBridge {
   }
 
   async getJobState(jobId) {
-    const stateVal = await getDictionaryItem(CONTRACTS.escrowVault, 'ev2_jobs', `${jobId}:state`);
+    const stateVal = await getDictionaryItem(CONTRACTS.escrowVault, 'jobs_dict', `${jobId}:state`);
     return stateVal !== null ? Number(stateVal) : null;
   }
 

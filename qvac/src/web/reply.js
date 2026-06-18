@@ -37,7 +37,7 @@ export function parseBody(req) {
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
-      try { resolve(JSON.parse(body)); }
+      try { resolve(body ? JSON.parse(body) : {}); }
       catch (e) { reject(e); }
     });
     req.on('error', reject);

@@ -32,8 +32,9 @@ export class QVACInferenceLayer {
       this.logger.warn(`QVAC SDK not available: ${e.message}`);
       this.qvac = null;
     }
-    this.logger.info(`Configured models: ${this.config.qvac.models.join(', ')}`);
-    this.logger.info(`Max concurrent requests: ${this.config.qvac.maxConcurrent}`);
+    const qvacCfg = this.config?.qvac || {};
+    this.logger.info(`Configured models: ${(qvacCfg.models || ['default']).join(', ')}`);
+    this.logger.info(`Max concurrent requests: ${qvacCfg.maxConcurrent || 4}`);
     this.logger.info('QVAC inference layer initialized');
   }
 
@@ -89,7 +90,8 @@ export class QVACInferenceLayer {
 
   async handleInferenceRequest(request) {
     if (!this.isRunning) throw new Error('Inference layer not running');
-    if (this.activeRequests.size >= this.config.qvac.maxConcurrent) {
+    const maxConcurrent = this.config?.qvac?.maxConcurrent || 4;
+    if (this.activeRequests.size >= maxConcurrent) {
       throw new Error('Max concurrent requests reached');
     }
 
@@ -102,10 +104,11 @@ export class QVACInferenceLayer {
     if (this.taskMonitor) {
       this.taskMonitor.registerInferenceTask({
         id: requestId,
-        model: request.model || this.config.qvac.models[0],
+        model: request.model || (this.config?.qvac?.models?.[0] || 'default'),
         type: 'inference',
         priority: request.priority || 'normal',
-        source: request.source
+        source: request.source,
+        _skipNotify: true
       });
     }
 
@@ -156,7 +159,7 @@ export class QVACInferenceLayer {
     const latency = Date.now() - (this.activeRequests.get(requestId)?.start || Date.now());
     return {
       requestId,
-      model: this.config.qvac.models[0],
+      model: this.config?.qvac?.models?.[0] || 'default',
       output: output.trim(),
       latency,
       source: request.source,
@@ -168,7 +171,7 @@ export class QVACInferenceLayer {
     const latency = Date.now() - (this.activeRequests.get(requestId)?.start || Date.now());
     return {
       requestId,
-      model: this.config.qvac.models[0] || 'fallback',
+      model: this.config?.qvac?.models?.[0] || 'fallback',
       output: `Fallback inference for: ${request.prompt || request.input || JSON.stringify(request).slice(0, 200)}`,
       latency,
       source: request.source,
@@ -179,14 +182,15 @@ export class QVACInferenceLayer {
 
   isIdle() {
     const idleTime = Date.now() - this.lastActivity;
-    return idleTime > this.config.idleTimeout && this.activeRequests.size === 0;
+    const idleTimeout = this.config?.idleTimeout || 300000;
+    return idleTime > idleTimeout && this.activeRequests.size === 0;
   }
 
   getStatus() {
     return {
       running: this.isRunning,
       activeRequests: this.activeRequests.size,
-      maxConcurrent: this.config.qvac.maxConcurrent,
+      maxConcurrent: this.config?.qvac?.maxConcurrent || 4,
       idle: this.isIdle(),
       lastActivity: this.lastActivity,
       qvacAvailable: !!this.qvac,

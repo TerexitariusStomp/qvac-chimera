@@ -28,17 +28,25 @@ export class TaskMonitor {
   
   registerInferenceTask(task) {
     const taskId = task.id || Math.random().toString(36).substring(7);
-    
+
+    // Prevent infinite recursion: don't re-register tasks from miners
+    if (this.inferenceTasks.has(taskId)) {
+      return taskId;
+    }
+
     this.inferenceTasks.set(taskId, {
       ...task,
       id: taskId,
       timestamp: Date.now(),
       status: 'pending'
     });
-    
+
     this.logger.info(`New inference task registered: ${taskId}`);
-    this.notifyMiners(taskId, task);
-    
+    // Only notify miners for external tasks, not internal ones
+    if (!task._skipNotify) {
+      this.notifyMiners(taskId, task);
+    }
+
     return taskId;
   }
   
