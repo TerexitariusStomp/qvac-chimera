@@ -13,7 +13,8 @@ const FILES = {
   users: path.join(DATA_DIR, 'users.json'),
   orders: path.join(DATA_DIR, 'orders.json'),
   payouts: path.join(DATA_DIR, 'payouts.json'),
-  distributions: path.join(DATA_DIR, 'distributions.json')
+  distributions: path.join(DATA_DIR, 'distributions.json'),
+  denials: path.join(DATA_DIR, 'denials.json')
 };
 
 export class PayoutStore {
@@ -48,10 +49,12 @@ export class PayoutStore {
   async getOrders() { return this._load('orders'); }
   async getPayouts() { return this._load('payouts'); }
   async getDistributions() { return this._load('distributions'); }
+  async getDenials() { return this._load('denials'); }
 
   async saveApps() { return this._save('apps'); }
   async saveUsers() { return this._save('users'); }
   async saveOrders() { return this._save('orders'); }
   async savePayouts() { return this._save('payouts'); }
   async saveDistributions() { return this._save('distributions'); }
+  async saveDenials() { return this._save('denials'); }
 }

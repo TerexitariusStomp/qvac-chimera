@@ -232,9 +232,12 @@ export class PayoutRouter {
     distributions[key] = {
       year,
       month,
-      distributedAt: Date.now(),
+      generatedAt: Date.now(),
+      distributedAt: null,
       txHash: txHash || null,
-      status: txHash ? 'confirmed' : 'pending'
+      status: 'calculated', // calculated | pending | denied | executing | confirmed
+      denialWindowHours: 168, // 7 days
+      denials: []
     };
     await this.store.saveDistributions();
     logger.info(`[payout] Distribution marked for ${key}: ${txHash || 'pending'}`);
@@ -246,6 +249,108 @@ export class PayoutRouter {
     const key = `${year}-${String(month).padStart(2, '0')}`;
     const d = distributions[key];
     if (!d) return { success: false, error: 'No distribution record' };
+
+    // Check if denial window expired and no denials -> auto-execute
+    const shouldExecute = this._shouldAutoExecute(d);
+    if (shouldExecute && d.status === 'calculated') {
+      logger.info(`[payout] Auto-executing ${key} — no denial within ${d.denialWindowHours}h window`);
+      const exec = await this.executeDistribution(year, month);
+      d.status = exec.success ? 'executing' : 'failed';
+      await this.store.saveDistributions();
+      return { success: true, distribution: d, autoExecuted: true };
+    }
+
+    return { success: true, distribution: d };
+  }
+
+  _shouldAutoExecute(d) {
+    if (d.status !== 'calculated') return false;
+    if ((d.denials || []).length > 0) return false;
+    const elapsed = (Date.now() - d.generatedAt) / (1000 * 60 * 60); // hours
+    return elapsed >= (d.denialWindowHours || 168);
+  }
+
+  async denyDistribution(year, month, { memberId, reason } = {}) {
+    const distributions = await this.store.getDistributions();
+    const key = `${year}-${String(month).padStart(2, '0')}`;
+    const d = distributions[key];
+    if (!d) return { success: false, error: 'No distribution record' };
+    if (d.status !== 'calculated') return { success: false, error: `Cannot deny — status is ${d.status}` };
+
+    const elapsed = (Date.now() - d.generatedAt) / (1000 * 60 * 60);
+    if (elapsed >= (d.denialWindowHours || 168)) {
+      return { success: false, error: 'Denial window has expired' };
+    }
+
+    d.denials = d.denials || [];
+    d.denials.push({
+      memberId: memberId || 'unknown',
+      reason: reason || '',
+      timestamp: Date.now()
+    });
+    d.status = 'denied';
+    await this.store.saveDistributions();
+    logger.warn(`[payout] Distribution ${key} DENIED by ${memberId || 'unknown'}: ${reason || 'no reason'}`);
+    return { success: true, distribution: d };
+  }
+
+  async executeDistribution(year, month) {
+    const distributions = await this.store.getDistributions();
+    const payouts = await this.store.getPayouts();
+    const key = `${year}-${String(month).padStart(2, '0')}`;
+    const d = distributions[key];
+    const manifest = payouts[key];
+    if (!d) return { success: false, error: 'No distribution record' };
+    if (!manifest) return { success: false, error: 'No manifest found' };
+    if (d.status === 'executing' || d.status === 'confirmed') {
+      return { success: false, error: `Already ${d.status}` };
+    }
+
+    // Build distribution plan
+    const byWallet = {};
+    for (const dist of manifest.distributions || []) {
+      byWallet[dist.developerEVM] = (byWallet[dist.developerEVM] || 0) + dist.devAmount;
+      byWallet[dist.machineOwnerEVM] = (byWallet[dist.machineOwnerEVM] || 0) + dist.userAmount;
+    }
+    const plan = Object.entries(byWallet)
+      .map(([address, amount]) => ({ address, amount: parseFloat(amount.toFixed(6)) }))
+      .filter(x => x.amount > 0);
+
+    d.status = 'executing';
+    d.executionStartedAt = Date.now();
+    d.recipients = plan.length;
+    await this.store.saveDistributions();
+    logger.info(`[payout] Execution started for ${key}: ${plan.length} recipients`);
+
+    // In production: call EVM multisig contract to execute transfers
+    // For now: log and write to file (same as MonthlyDistributor)
+    const { promises: fs } = await import('fs');
+    const path = await import('path');
+    const dir = path.default.join(process.cwd(), 'data', 'payouts');
+    await fs.mkdir(dir, { recursive: true });
+    const file = path.default.join(dir, `execution-${year}-${String(month).padStart(2, '0')}.json`);
+    await fs.writeFile(file, JSON.stringify({
+      year, month,
+      executedAt: Date.now(),
+      status: 'executing',
+      totalRecipients: plan.length,
+      recipients: plan
+    }, null, 2), 'utf-8');
+
+    logger.info(`[payout] Execution plan saved to ${file}`);
+    return { success: true, distribution: d, plan };
+  }
+
+  async confirmDistribution(year, month, txHash) {
+    const distributions = await this.store.getDistributions();
+    const key = `${year}-${String(month).padStart(2, '0')}`;
+    const d = distributions[key];
+    if (!d) return { success: false, error: 'No distribution record' };
+    d.status = 'confirmed';
+    d.distributedAt = Date.now();
+    d.txHash = txHash || null;
+    await this.store.saveDistributions();
+    logger.info(`[payout] Distribution ${key} CONFIRMED: ${txHash || 'no txHash'}`);
     return { success: true, distribution: d };
   }
 

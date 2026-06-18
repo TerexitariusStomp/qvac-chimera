@@ -45,35 +45,33 @@ export class MonthlyDistributor {
     logger.info(`[monthly] Running distribution for ${targetYear}-${String(targetMonth).padStart(2, '0')}`);
 
     try {
-      const result = await this.payoutRouter.calculateMonthlyPayout(targetYear, targetMonth);
-      if (!result.success) {
-        logger.error(`[monthly] Calculation failed: ${result.error}`);
+      // 1. Calculate manifest
+      const calcResult = await this.payoutRouter.calculateMonthlyPayout(targetYear, targetMonth);
+      if (!calcResult.success) {
+        logger.error(`[monthly] Calculation failed: ${calcResult.error}`);
         return;
       }
-
-      const manifest = result.manifest;
+      const manifest = calcResult.manifest;
       logger.info(`[monthly] Manifest: ${manifest.totalOrders} orders, ${manifest.totalRevenue.toFixed(6)} total`);
 
-      // Build distribution summary by wallet address
+      // 2. Initialize distribution with denial window
+      const initResult = await this.payoutRouter.markDistributed(targetYear, targetMonth, null);
+      if (!initResult.success) {
+        logger.error(`[monthly] Failed to initialize distribution: ${initResult.error}`);
+        return;
+      }
+      logger.info(`[monthly] Distribution ${targetYear}-${String(targetMonth).padStart(2, '0')} — status: calculated, denial window: 168 hours (7 days)`);
+
+      // 3. Write execution plan for transparency
       const byWallet = {};
       for (const d of manifest.distributions) {
-        const devKey = d.developerEVM;
-        const userKey = d.machineOwnerEVM;
-        byWallet[devKey] = (byWallet[devKey] || 0) + d.devAmount;
-        byWallet[userKey] = (byWallet[userKey] || 0) + d.userAmount;
+        byWallet[d.developerEVM] = (byWallet[d.developerEVM] || 0) + d.devAmount;
+        byWallet[d.machineOwnerEVM] = (byWallet[d.machineOwnerEVM] || 0) + d.userAmount;
       }
+      const distributionPlan = Object.entries(byWallet)
+        .map(([address, amount]) => ({ address, amount: parseFloat(amount.toFixed(6)) }))
+        .filter(x => x.amount > 0);
 
-      const distributionPlan = Object.entries(byWallet).map(([address, amount]) => ({
-        address,
-        amount: parseFloat(amount.toFixed(6))
-      })).filter(x => x.amount > 0);
-
-      logger.info(`[monthly] Distribution plan: ${distributionPlan.length} recipients`);
-      for (const entry of distributionPlan) {
-        logger.info(`[monthly]   → ${entry.address}: ${entry.amount.toFixed(6)}`);
-      }
-
-      // Write distribution plan to file for admin review / execution
       const { promises: fs } = await import('fs');
       const path = await import('path');
       const dir = path.default.join(process.cwd(), 'data', 'payouts');
@@ -83,14 +81,19 @@ export class MonthlyDistributor {
         year: targetYear,
         month: targetMonth,
         generatedAt: Date.now(),
+        denialWindowHours: 168,
+        status: 'calculated',
         totalRevenue: manifest.totalRevenue,
         totalRecipients: distributionPlan.length,
         recipients: distributionPlan
       }, null, 2), 'utf-8');
-
-      // Mark as pending distribution
-      await this.payoutRouter.markDistributed(targetYear, targetMonth, null);
       logger.info(`[monthly] Distribution plan saved to ${file}`);
+
+      // 4. Check if we can auto-execute (only if window already expired, e.g. test scenario)
+      const statusResult = await this.payoutRouter.getDistributionStatus(targetYear, targetMonth);
+      if (statusResult.autoExecuted) {
+        logger.info(`[monthly] Distribution ${targetYear}-${String(targetMonth).padStart(2, '0')} AUTO-EXECUTED — no denial within window`);
+      }
 
     } catch (err) {
       logger.error(`[monthly] Error: ${err.message}`);

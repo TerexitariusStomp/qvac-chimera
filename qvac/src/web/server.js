@@ -720,6 +720,22 @@ print(result.text_content)
     ok(res, await this.payoutRouter.markDistributed(year, month, txHash));
   }
 
+  async handlePayoutDeny(req, res) {
+    const body = await parseBody(req);
+    const { year, month, memberId, reason } = body;
+    const result = await this.payoutRouter.denyDistribution(year, month, { memberId, reason });
+    if (result.success) ok(res, result);
+    else badRequest(res, result.error);
+  }
+
+  async handlePayoutConfirm(req, res) {
+    const body = await parseBody(req);
+    const { year, month, txHash } = body;
+    const result = await this.payoutRouter.confirmDistribution(year, month, txHash);
+    if (result.success) ok(res, result);
+    else badRequest(res, result.error);
+  }
+
   async handlePayoutStats(req, res) {
     ok(res, await this.payoutRouter.getStats());
   }

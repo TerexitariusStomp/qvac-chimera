@@ -307,6 +307,23 @@
         <button class="mining-btn start" style="margin-top:12px" onclick="refreshPayoutStats()">↻ Refresh</button>
       </div>
     </div>
+
+    <div class="mining-dashboard" style="max-width:800px;margin:24px auto 0">
+      <div style="font-size:14px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+        <span>Monthly Distribution</span>
+        <span style="font-size:11px;color:#4a4540;font-weight:400">7-day denial window — auto-executes if no denial</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+        <input type="number" id="distYear" class="mining-input" placeholder="Year (e.g. 2026)" value="2026">
+        <input type="number" id="distMonth" class="mining-input" placeholder="Month (1-12)" value="6">
+        <div style="display:flex;gap:8px">
+          <button class="mining-btn start" style="flex:1" onclick="checkDistribution()">Check</button>
+          <button class="mining-btn stop" style="flex:1" onclick="denyDistribution()">Deny</button>
+        </div>
+      </div>
+      <div id="distStatus" style="font-size:13px;color:#7a7468;min-height:20px"></div>
+      <div id="distDetails" style="margin-top:12px;font-size:12px;font-family:ui-monospace,SFMono-Regular,monospace;color:#7a7468;line-height:1.6"></div>
+    </div>
   </div>
 </section>
 
@@ -669,6 +686,57 @@
   (function initPayouts() {
     refreshPayoutStats();
   })();
+
+  async function checkDistribution() {
+    const year = parseInt(document.getElementById('distYear').value, 10);
+    const month = parseInt(document.getElementById('distMonth').value, 10);
+    const statusEl = document.getElementById('distStatus');
+    const detailsEl = document.getElementById('distDetails');
+    try {
+      const res = await fetch(`${API}/payout/manifest?year=${year}&month=${month}`);
+      const json = await res.json();
+      if (!json.success) { statusEl.textContent = 'No manifest for this month'; detailsEl.textContent = ''; return; }
+
+      const man = json.manifest;
+      const distRes = await fetch(`${API}/payout/manifest?year=${year}&month=${month}`);
+      const distJson = await distRes.json();
+      let distInfo = '';
+      if (distJson.autoExecuted) {
+        distInfo = ' | AUTO-EXECUTED (no denial within 7-day window)';
+      }
+      statusEl.innerHTML = `<span style="color:#e8e2d8;font-weight:600">${year}-${String(month).padStart(2,'0')}</span> — ${man.totalOrders} orders, ${man.totalRevenue.toFixed(4)} total${distInfo}`;
+      let lines = '';
+      for (const s of man.appSummaries.slice(0, 5)) {
+        lines += `  ${s.appId}: dev ${s.devTotal.toFixed(4)}, user ${s.userTotal.toFixed(4)}\n`;
+      }
+      detailsEl.textContent = lines || 'No app data';
+    } catch (e) {
+      statusEl.textContent = 'Backend not reachable';
+      detailsEl.textContent = '';
+    }
+  }
+
+  async function denyDistribution() {
+    const year = parseInt(document.getElementById('distYear').value, 10);
+    const month = parseInt(document.getElementById('distMonth').value, 10);
+    const statusEl = document.getElementById('distStatus');
+    try {
+      const res = await fetch(`${API}/payout/deny`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year, month, memberId: 'admin', reason: 'Manual denial from landing page' })
+      });
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : {};
+      if (json.success) {
+        statusEl.innerHTML = `<span style="color:#fca5a5">DENIED</span> — ${year}-${String(month).padStart(2,'0')} distribution blocked`;
+      } else {
+        statusEl.innerHTML = `<span style="color:#fca5a5">Denial failed: ${json.error}</span>`;
+      }
+    } catch (e) {
+      statusEl.textContent = 'Backend not reachable';
+    }
+  }
 </script>
 
 </body>
