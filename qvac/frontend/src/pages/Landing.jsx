@@ -13,15 +13,12 @@ import {
   Globe,
   Server,
   Activity,
-  Clock,
   Award,
-  Camera,
   Download,
   Smartphone
 } from 'lucide-react'
-import AIWriterExample from './AIWriterExample'
 
-export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNavigateToAIWriter, onNavigateToWiki }) {
+export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNavigateToWiki }) {
   const [activeTab, setActiveTab] = useState('overview')
   const [installPrompt, setInstallPrompt] = useState(null)
   const [mobileOS, setMobileOS] = useState(null)
@@ -72,14 +69,6 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
                   <span className="hidden sm:inline">Install App</span>
                 </button>
               )}
-              {onNavigateToAIWriter && (
-                <button
-                  onClick={onNavigateToAIWriter}
-                  className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors text-sm"
-                >
-                  AI Writer
-                </button>
-              )}
               <button
                 onClick={() => window.open('/wiki', '_blank')}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors text-sm"
@@ -106,8 +95,9 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
             Chimera
           </h1>
           <p className="text-xl text-dark-300 mb-8 max-w-2xl mx-auto">
-            A powerful node that combines QVAC for local AI inference, Pear for P2P distribution,
-            Hypercore for data storage, and multi-miner support with parallel monitoring.
+            A distributed AI wiki and miner node. The LLMwiki is powered by the same QVAC inference 
+            backend that serves task networks like Cortensor, Chutes, and Routstr. All inference — 
+            whether for wiki generation or miner tasks — runs through one unified QVAC instance.
           </p>
         </div>
       </section>
@@ -233,13 +223,16 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
 
             <div className="card hover:border-primary-500/50 transition-colors">
               <div className="w-12 h-12 bg-orange-500/10 rounded-lg flex items-center justify-center mb-4">
-                <Clock className="w-6 h-6 text-orange-400" />
+                <Globe className="w-6 h-6 text-orange-400" />
               </div>
-              <h3 className="text-lg font-semibold text-white mb-2">Time-Based Scheduling</h3>
-              <p className="text-sm text-dark-400">
-                Automatic resource allocation between day (inference earning) and 
-                night (custom applications) modes.
+              <h3 className="text-lg font-semibold text-white mb-2">LLM Wiki (Openviking)</h3>
+              <p className="text-sm text-dark-400 mb-3">
+                AI-generated markdown wiki with search, link graphs, and P2P sync. 
+                Serves as a queryable memory store for AI agents via REST API.
               </p>
+              <button onClick={() => window.open('/wiki', '_blank')} className="text-xs text-primary-400 hover:text-primary-300">
+                Open Wiki →
+              </button>
             </div>
 
             <div className="card hover:border-primary-500/50 transition-colors">
@@ -296,11 +289,12 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
                     <a href="https://pears.com/" target="_blank" rel="noopener noreferrer" className="text-xs text-primary-400 hover:text-primary-300">→</a>
                   </div>
                   <div className="flex items-center gap-3 p-3 bg-dark-900/50 rounded-lg">
-                    <Clock className="w-4 h-4 text-orange-400" />
+                    <Globe className="w-4 h-4 text-orange-400" />
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-white">Time Scheduler</p>
-                      <p className="text-xs text-dark-400">Automatic day/night mode switching</p>
+                      <p className="text-sm font-medium text-white">LLM Wiki (Openviking)</p>
+                      <p className="text-xs text-dark-400">AI memory store with search, graph, P2P sync</p>
                     </div>
+                    <button onClick={() => window.open('/wiki', '_blank')} className="text-xs text-primary-400 hover:text-primary-300">→</button>
                   </div>
                   <div className="flex items-center gap-3 p-3 bg-dark-900/50 rounded-lg">
                     <Activity className="w-4 h-4 text-purple-400" />
@@ -380,11 +374,6 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
             </div>
           </div>
         </div>
-      </section>
-
-      {/* AI Writer Integration Section - INLINE ON LANDING PAGE */}
-      <section className="container mx-auto px-6 py-16">
-        <AIWriterExample onNavigateBack={() => {}} onNavigateToDashboard={onNavigateToDashboard} />
       </section>
 
       {/* Tech Stack Section */}

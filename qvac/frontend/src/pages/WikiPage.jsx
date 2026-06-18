@@ -635,14 +635,6 @@ export default function WikiPage({ onBack }) {
           <button style={s.newPageBtn} onClick={() => { setSelectedDoc(null); setEditorText(''); }}>
             + New Page
           </button>
-          {sysStatus && (
-            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #1e1e2e', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.6 }}>System</div>
-              <div style={{ fontSize: 10, color: sysStatus.qvac?.available ? '#86efac' : '#f87171' }}>⚡ QVAC {sysStatus.qvac?.available ? '●' : '○'}</div>
-              <div style={{ fontSize: 10, color: sysStatus.hypercore?.available ? '#86efac' : '#f87171' }}>📦 Hypercore {sysStatus.hypercore?.available ? '●' : '○'} {sysStatus.hypercore?.length > 0 ? `(${sysStatus.hypercore.length})` : ''}</div>
-              <div style={{ fontSize: 10, color: sysStatus.pear?.available ? '#86efac' : '#f87171' }}>🌐 Pear {sysStatus.pear?.available ? '●' : '○'} {sysStatus.pear?.peers > 0 ? `(${sysStatus.pear.peers} peers)` : ''}</div>
-            </div>
-          )}
         </div>
       </aside>
 

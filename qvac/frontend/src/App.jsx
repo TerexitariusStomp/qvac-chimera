@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import Landing from './pages/Landing'
-import AIWriter from './pages/AIWriter'
 import WikiPage from './pages/WikiPage'
 
 function App() {
@@ -32,23 +31,8 @@ function App() {
       <Landing
         onNavigateToDashboard={() => setView('status')}
         onNavigateToMiner={() => setView('status')}
-        onNavigateToAIWriter={() => setView('aiwriter')}
         onNavigateToWiki={() => setView('wiki')}
       />
-    )
-  }
-
-  if (view === 'aiwriter') {
-    return (
-      <div style={{ background: '#0f172a', minHeight: '100vh' }}>
-        <button
-          onClick={() => setView('landing')}
-          style={{ margin: 24, padding: '8px 16px', background: '#334155', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}
-        >
-          ← Back to Landing
-        </button>
-        <AIWriter />
-      </div>
     )
   }
 
