@@ -3,14 +3,14 @@ import pkg from 'casper-js-sdk';
 const sdk = pkg;
 const { PrivateKey, KeyAlgorithm, CLValue, Args, DeployHeader, ExecutableDeployItem, Deploy } = sdk;
 
-const WASM_PATH = '/home/user/CascadeProjects/chimera-fortytwo-node/contracts-casper/target/wasm32-unknown-unknown/release/escrow_vault.wasm';
+const WASM_PATH = '/tmp/escrow_vault_opt.wasm';
 const RPC_URL = 'http://localhost:7778/rpc';
 const CHAIN_NAME = 'casper-test';
 
 const PEM = `-----BEGIN EC PRIVATE KEY-----
-MHQCAQEEIBJLNm8sYi/pVIcbF2soCZTxr9wO3EGtlEtkA2X5bOQvoAcGBSuBBAAK
-oUQDQgAE7jl1qDI712D51EeKgfIZ974LmOYjjwkjQ3mHFrpLpL/mbwQ7mz/zmBjf
-Rm6VsWCs2wbZAkjyLfzmUUrmzvWIhQ==
+MHQCAQEEIA6Hjhvhzz4rc5cKlR3fOtI42H8E1VOqpdpe6P/Nc7qvoAcGBSuBBAAK
+oUQDQgAEJ9jdXMqmAORbNuWY2Q74wmtsZ++Bvf696PpYOZepHqWCFmTFZDzW+JYO
+fZf7vQid4otudHLFJBWkiazcayJz9g==
 -----END EC PRIVATE KEY-----`;
 
 const CONTRACTS = {
@@ -47,11 +47,9 @@ async function deploy() {
   const header = DeployHeader.default();
   header.account = publicKey;
   header.chainName = CHAIN_NAME;
-  header.timestamp = new Date();
-  header.ttl = '30m';
 
   const session = ExecutableDeployItem.newModuleBytes(wasmBytes, args);
-  const payment = ExecutableDeployItem.standardPayment('50000000000');
+  const payment = ExecutableDeployItem.standardPayment('500000000000');
   const deploy = Deploy.makeDeploy(header, payment, session);
   deploy.sign(privateKey);
 

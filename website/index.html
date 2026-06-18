@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chimera — Local AI That Earns When Idle</title>
+  <meta name="description" content="Run a local QVAC inference node on any device. Mine tasks, write with AI, and earn — all in a hardened container.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='linear-gradient(135deg,%2300e5ff,%23a855f7)'/%3E%3Ctext x='50' y='68' text-anchor='middle' font-size='52' font-weight='800' fill='%23000'%3EC%3C/text%3E%3C/svg%3E">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,ui-sans-serif,system-ui,sans-serif;background:#030308;color:#e8e2d8;line-height:1.6;-webkit-font-smoothing:antialiased}
+    a{color:inherit;text-decoration:none}
+    .container{max-width:1100px;margin:0 auto;padding:0 24px}
+    .gradient-text{background:linear-gradient(135deg,#00e5ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .section-label{text-transform:uppercase;letter-spacing:.15em;font-size:11px;font-weight:600;color:#7a7468;margin-bottom:12px}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;transition:all .2s;cursor:pointer;border:none}
+    .btn-primary{background:linear-gradient(135deg,#00e5ff,#a855f7);color:#000}
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,229,255,.2)}
+    .btn-secondary{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#e8e2d8}
+    .btn-secondary:hover{background:rgba(255,255,255,.1)}
+    .tag{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);font-size:13px;color:#b0a898}
+    .tag .dot{width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 6px #4ade80;animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+    header{position:fixed;inset:0 0 auto;z-index:50;background:rgba(3,3,8,.88);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.05)}
+    header .container{height:60px;display:flex;align-items:center;justify-content:space-between}
+    .logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:.02em;color:#e8e2d8}
+    .logo-icon{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#00e5ff,#a855f7);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#000}
+    nav{display:flex;align-items:center;gap:28px}
+    nav a{font-size:14px;color:#7a7468;transition:.2s}
+    nav a:hover{color:#e8e2d8}
+    .nav-cta{padding:8px 18px;border-radius:8px;background:rgba(0,229,255,.12);color:#00e5ff;font-size:13px;font-weight:600;transition:.2s}
+    .nav-cta:hover{background:rgba(0,229,255,.2)}
+
+    .hero{min-height:90vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:140px 24px 80px}
+    .hero-tag{display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);font-size:13px;color:#7a7468;margin-bottom:28px}
+    .hero-tag .dot{width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;animation:pulse 2s infinite}
+    .hero h1{font-size:clamp(36px,6vw,64px);font-weight:800;line-height:1.05;letter-spacing:-.02em;margin-bottom:20px}
+    .hero p{font-size:17px;color:#7a7468;max-width:520px;margin:0 auto 32px;line-height:1.7}
+    .hero-cta{padding:14px 32px;border-radius:12px;background:linear-gradient(135deg,#00e5ff,#a855f7);color:#000;font-size:15px;font-weight:700;transition:.2s;cursor:pointer;border:none}
+    .hero-cta:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,229,255,.25)}
+
+    .section{padding:100px 0}
+    .section-header{text-align:center;margin-bottom:56px}
+    .section-header h2{font-size:32px;font-weight:700;margin-bottom:10px}
+    .section-header p{color:#7a7468;font-size:15px;max-width:440px;margin:0 auto}
+
+    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+    .card{border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:28px;background:rgba(255,255,255,.015);transition:.25s}
+    .card:hover{border-color:rgba(255,255,255,.12);background:rgba(255,255,255,.03);transform:translateY(-2px)}
+    .card-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:16px}
+    .card h3{font-size:16px;font-weight:600;margin-bottom:6px;color:#e8e2d8}
+    .card p{font-size:13px;color:#7a7468;line-height:1.6}
+
+    .code-section{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:20px;padding:32px;margin-top:24px}
+    .code-section-header{display:flex;gap:12px;margin-bottom:16px;align-items:center}
+    .code-dot{width:12px;height:12px;border-radius:50%}
+    .code-block{background:#0a0a12;border-radius:12px;padding:20px 24px;font-family:ui-monospace,SFMono-Regular,monospace;font-size:13px;color:#b0a898;overflow-x:auto;line-height:1.8}
+    .code-block .prompt{color:#00e5ff}
+    .code-block .output{color:#7a7468}
+
+    .platforms{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:32px}
+    .platform{border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:20px;background:rgba(255,255,255,.015);display:flex;align-items:center;gap:14px;transition:.2s}
+    .platform:hover{border-color:rgba(255,255,255,.12);background:rgba(255,255,255,.03)}
+    .platform .icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
+    .platform .name{font-weight:600;font-size:14px;margin-bottom:2px}
+    .platform .meta{font-size:12px;color:#7a7468}
+    .platform .arrow{margin-left:auto;color:#7a7468;font-size:18px}
+    .platform:hover .arrow{color:#e8e2d8}
+    .platform.disabled{opacity:.5;pointer-events:none}
+
+    .how-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:40px}
+    .how-step{text-align:center;padding:24px}
+    .how-num{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#00e5ff,#a855f7);color:#000;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;margin:0 auto 16px}
+    .how-step h3{font-size:16px;font-weight:600;margin-bottom:8px}
+    .how-step p{font-size:13px;color:#7a7468;line-height:1.6}
+
+    .cta-section{text-align:center;padding:100px 24px;background:rgba(255,255,255,.01);border-top:1px solid rgba(255,255,255,.06)}
+    .cta-section h2{font-size:32px;font-weight:700;margin-bottom:16px}
+    .cta-section p{color:#7a7468;font-size:15px;margin-bottom:28px}
+
+    .footer-logos{display:flex;justify-content:center;align-items:center;gap:40px;margin-top:40px;flex-wrap:wrap}
+    .footer-logo{display:flex;align-items:center;gap:10px;color:#7a7468;font-size:13px;font-weight:500}
+    .footer-logo .box{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+
+    footer{padding:40px 0;border-top:1px solid rgba(255,255,255,.06);text-align:center;color:#5a5448;font-size:12px}
+    footer a{color:#7a7468;transition:.2s}
+    footer a:hover{color:#00e5ff}
+
+    @media (max-width:768px){
+      .how-grid{grid-template-columns:1fr}
+      nav{display:none}
+      .hero h1{font-size:32px}
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <a href="#" class="logo">
+      <div class="logo-icon">C</div>
+      Chimera
+    </a>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#download">Download</a>
+      <a href="https://github.com/TerexitariusStomp/qvac-chimera" target="_blank" rel="noopener">GitHub</a>
+      <a href="#download" class="nav-cta">Get the app</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-tag">
+    <span class="dot"></span>
+    Open source · Permissionless
+  </div>
+  <h1 class="gradient-text">Local AI apps<br>that earn when idle.</h1>
+  <p>Run a hardened QVAC inference node on any device. Each phone, laptop, and server is its own standalone node — no relay, no router, no central dependency.</p>
+  <a href="#download" class="hero-cta">Download</a>
+</section>
+
+<section class="section" id="features">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">What You Get</div>
+      <h2>One node.<br>Two jobs.</h2>
+      <p>Every device runs a complete inference and storage stack. No cloud dependency.</p>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="card-icon" style="background:rgba(0,229,255,.1);color:#00e5ff">💰</div>
+        <h3>Earn when idle</h3>
+        <p>Your device mines inference tasks from Cortensor, Chutes, Fortytwo, Earnidle, and Routstr. Get paid for every completion.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(168,85,247,.1);color:#a855f7">🧠</div>
+        <h3>LLM Inference</h3>
+        <p>Powered by @qvac/sdk running llama.cpp with Metal (Apple) and Vulkan (Android) acceleration. Fully local.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(34,197,94,.1);color:#22c55e">🌐</div>
+        <h3>Peer-to-peer</h3>
+        <p>Pear P2P networking syncs wiki pages across swarms. Join topic-specific groups and broadcast content.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(249,115,22,.1);color:#f97316">🛡</div>
+        <h3>Hardened sandbox</h3>
+        <p>Desktop runs in Docker with a non-root user and minimal runtime. Mobile runs in the native OS sandbox.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(59,130,246,.1);color:#3b82f6">📡</div>
+        <h3>Swarm intelligence</h3>
+        <p>Commander/worker fleet mode for distributed task orchestration. Register, distribute, collect.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(236,72,153,.1);color:#ec4899">📖</div>
+        <h3>Built on open source</h3>
+        <p>llama.cpp, Pear P2P, Hypercore, and Tauri. Transparent, auditable, community-driven.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background:rgba(255,255,255,.01)">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Architecture</div>
+      <h2>Local AI first.<br>Shared capacity second.</h2>
+      <p>Each device is a self-contained node. The container holds your backend. The shell owns the experience.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:32px">
+      <div class="code-section">
+        <div class="code-section-header">
+          <span class="code-dot" style="background:#ff5f56"></span>
+          <span class="code-dot" style="background:#ffbd2e"></span>
+          <span class="code-dot" style="background:#27c93f"></span>
+          <span style="font-size:12px;color:#7a7468;margin-left:4px">Terminal</span>
+        </div>
+        <div class="code-block">
+          <span class="prompt">$</span> curl -fsSL chimera.sh | bash<br>
+          <span class="output">==> Downloading Chimera...</span><br>
+          <span class="output">==> Installing to /Applications...</span><br>
+          <span class="output">==> Starting supervisor...</span><br>
+          <span class="output">==> Container running on localhost:3002</span><br>
+          <span class="prompt">$</span> <span style="animation:blink 1s infinite">_</span>
+        </div>
+      </div>
+      <div class="code-section">
+        <div class="code-section-header">
+          <span class="code-dot" style="background:#ff5f56"></span>
+          <span class="code-dot" style="background:#ffbd2e"></span>
+          <span class="code-dot" style="background:#27c93f"></span>
+          <span style="font-size:12px;color:#7a7468;margin-left:4px">Wiki API</span>
+        </div>
+        <div class="code-block">
+          <span class="output">GET /api/status</span><br>
+          <span class="output">{ "qvac": true, "model": "llama-3.2-1b" }</span><br><br>
+          <span class="output">POST /api/ai-write</span><br>
+          <span class="output">{ "prompt": "Explain quantum..." }</span><br><br>
+          <span class="output">GET /api/llmwiki-docs</span><br>
+          <span class="output">{ "pages": 42, "swarmPeers": 3 }</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="download" style="border-top:1px solid rgba(255,255,255,.06)">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Download</div>
+      <h2>Download for your platform.</h2>
+      <p>Every platform runs the same stack. Pick yours and go.</p>
+    </div>
+    <div class="platforms">
+      <a href="https://github.com/TerexitariusStomp/qvac-chimera/releases/latest" target="_blank" rel="noopener" class="platform">
+        <div class="icon" style="background:rgba(0,229,255,.1);color:#00e5ff">L</div>
+        <div>
+          <div class="name">Linux</div>
+          <div class="meta">.deb · .rpm · .AppImage</div>
+        </div>
+        <div class="arrow">→</div>
+      </a>
+      <a href="https://github.com/TerexitariusStomp/qvac-chimera/releases/latest" target="_blank" rel="noopener" class="platform">
+        <div class="icon" style="background:rgba(168,85,247,.1);color:#a855f7">M</div>
+        <div>
+          <div class="name">macOS</div>
+          <div class="meta">Universal .dmg</div>
+        </div>
+        <div class="arrow">→</div>
+      </a>
+      <a href="https://github.com/TerexitariusStomp/qvac-chimera/releases/latest" target="_blank" rel="noopener" class="platform">
+        <div class="icon" style="background:rgba(59,130,246,.1);color:#3b82f6">W</div>
+        <div>
+          <div class="name">Windows</div>
+          <div class="meta">.msi installer</div>
+        </div>
+        <div class="arrow">→</div>
+      </a>
+      <a href="https://github.com/TerexitariusStomp/qvac-chimera/pkgs/container/qvac-chimera" target="_blank" rel="noopener" class="platform">
+        <div class="icon" style="background:rgba(34,197,94,.1);color:#22c55e">D</div>
+        <div>
+          <div class="name">Docker</div>
+          <div class="meta">docker-compose up -d</div>
+        </div>
+        <div class="arrow">→</div>
+      </a>
+      <div class="platform disabled">
+        <div class="icon" style="background:rgba(251,191,36,.1);color:#fbbf24">i</div>
+        <div>
+          <div class="name">iOS</div>
+          <div class="meta">App Store — coming soon</div>
+        </div>
+      </div>
+      <div class="platform disabled">
+        <div class="icon" style="background:rgba(251,191,36,.1);color:#fbbf24">A</div>
+        <div>
+          <div class="name">Android</div>
+          <div class="meta">Play Store — coming soon</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="how" style="border-top:1px solid rgba(255,255,255,.06)">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Architecture</div>
+      <h2>How it works</h2>
+      <p>Three layers. One app window.</p>
+    </div>
+    <div class="how-grid">
+      <div class="how-step">
+        <div class="how-num">1</div>
+        <h3>Tauri Desktop Shell</h3>
+        <p>The native window bundles the React frontend and loads it via the internal Tauri protocol. Start/Stop Supervisor controls live in the native header.</p>
+      </div>
+      <div class="how-step">
+        <div class="how-num">2</div>
+        <h3>Supervisor Sidecar</h3>
+        <p>A Go binary bundled as externalBin manages the Docker container lifecycle: pull image, start container, health checks, log streaming.</p>
+      </div>
+      <div class="how-step">
+        <div class="how-num">3</div>
+        <h3>Hardened Container</h3>
+        <p>The Docker container runs Node.js, @qvac/sdk, miners, P2P networking, and the wiki API server on localhost:3002. Non-root user. Minimal deps.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-section">
+  <div class="container">
+    <h2 class="gradient-text">Built on proven local-first<br>and P2P infrastructure.</h2>
+    <p>llama.cpp · Pear P2P · Hypercore · Tauri · Capacitor</p>
+    <div class="footer-logos">
+      <div class="footer-logo">
+        <div class="box" style="background:rgba(0,229,255,.1);color:#00e5ff">ll</div>
+        llama.cpp
+      </div>
+      <div class="footer-logo">
+        <div class="box" style="background:rgba(168,85,247,.1);color:#a855f7">P2</div>
+        Pear P2P
+      </div>
+      <div class="footer-logo">
+        <div class="box" style="background:rgba(34,197,94,.1);color:#22c55e">Hy</div>
+        Hypercore
+      </div>
+      <div class="footer-logo">
+        <div class="box" style="background:rgba(249,115,22,.1);color:#f97316">Ta</div>
+        Tauri
+      </div>
+      <div class="footer-logo">
+        <div class="box" style="background:rgba(59,130,246,.1);color:#3b82f6">Ca</div>
+        Capacitor
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <p>Chimera is open source under the MIT license.</p>
+    <p style="margin-top:8px"><a href="https://github.com/TerexitariusStomp/qvac-chimera" target="_blank" rel="noopener">GitHub</a> · <a href="https://x.com/LocalChimera" target="_blank" rel="noopener">Twitter</a></p>
+  </div>
+</footer>
+
+</body>
+</html>
