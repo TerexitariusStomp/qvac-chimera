@@ -204,19 +204,19 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
 
         <FadeUp delay={150}>
           <h1
-            style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontWeight: 800, fontSize: 'clamp(44px, 8vw, 88px)', lineHeight: 1.02, letterSpacing: '-0.025em', color: '#fff' }}
-            className="bg-gradient-to-br from-white via-white to-white/35 bg-clip-text text-transparent mb-6 max-w-4xl"
+            style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontWeight: 800, fontSize: 'clamp(40px, 7vw, 80px)', lineHeight: 1.05, letterSpacing: '-0.025em', color: '#fff' }}
+            className="mb-6 max-w-4xl"
           >
-            Decentralized LLM,<br />
-            <span style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", color: '#fff' }} className="bg-gradient-to-r from-cyan-400 via-cyan-300 to-purple-400 bg-clip-text text-transparent">
-              woven into your app.
+            Local AI apps<br />
+            <span className="bg-gradient-to-r from-cyan-400 via-cyan-300 to-purple-400 bg-clip-text text-transparent">
+              that earn when idle.
             </span>
           </h1>
         </FadeUp>
 
         <FadeUp delay={250}>
           <p style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontSize: 'clamp(17px, 2.2vw, 21px)', lineHeight: 1.75 }} className="text-white/70 max-w-2xl mb-10">
-            A distributed AI wiki and miner node. The LLMwiki is powered by the same QVAC inference backend that serves task networks like Cortensor, Chutes, and Routstr. All inference runs through one unified QVAC instance.
+            QVAC already powers AI inside the app. This layer makes that local inference capacity available to outside task networks whenever the app is not using it.
           </p>
         </FadeUp>
 
@@ -245,14 +245,14 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
             {[
               {
                 icon: Code2,
-                who: 'For Developers',
-                line: 'Integrate decentralized inference into any app. Your users get AI. You get a revenue share from every task routed through the network.',
+                who: 'For app developers',
+                line: 'Ship private, local AI with QVAC. When user devices are idle, unused inference capacity can be routed to external networks, creating shared revenue for the app and the inference provider.',
                 color: 'cyan',
               },
               {
                 icon: Coins,
-                who: 'For Contributors',
-                line: 'Run a Chimera node on your machine. When apps route inference tasks to the network, your hardware earns — proportional to work completed.',
+                who: 'For inference providers',
+                line: 'Run a local node on your machine. Use it for your own AI apps first, then let outside task networks use spare capacity and earn rewards for completed inference work.',
                 color: 'purple',
               },
             ].map(c => (
@@ -309,18 +309,19 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
             <Label color="purple">Key Features</Label>
             <h2 style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontWeight: 700, fontSize: 'clamp(28px, 4vw, 44px)', lineHeight: 1.1 }} className="text-white mb-4">
               One node.<br />
-              <span className="bg-gradient-to-r from-purple-400 to-purple-200 bg-clip-text text-transparent">Many networks.</span>
+              <span className="bg-gradient-to-r from-purple-400 to-purple-200 bg-clip-text text-transparent">Two jobs.</span>
             </h2>
           </FadeUp>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {[
-              { icon: Zap, title: 'QVAC Integration', desc: 'Local AI inference with llama-3.2-1b-instruct. On-device processing for privacy and speed.', accent: 'cyan', link: 'https://qvac.tether.io/' },
-              { icon: Network, title: 'Pear P2P', desc: 'Decentralized peer-to-peer distribution. Zero infrastructure, direct node-to-node communication.', accent: 'purple', link: 'https://pears.com/' },
-              { icon: Database, title: 'Hypercore Storage', desc: 'Secure, distributed append-only log. Replication and integrity verification built-in.', accent: 'amber', link: 'https://github.com/holepunchto/hypercore' },
-              { icon: Cpu, title: 'Multi-Miner Support', desc: 'Cortensor, Chutes, Fortytwo, Earnidle, Routstr — all run in parallel monitoring mode.', accent: 'cyan' },
-              { icon: Globe, title: 'LLM Wiki (Openviking)', desc: 'AI-generated markdown wiki with search, link graphs, and P2P sync. Queryable AI memory store.', accent: 'purple' },
-              { icon: Activity, title: 'Real-Time Task Monitor', desc: 'Immediate detection of inference tasks across all miners. Smart resource management.', accent: 'amber' },
+              { icon: Zap, title: 'One node. Two jobs.', desc: 'Use the same local node to power AI inside the app and to serve outside task networks when that compute is idle.', accent: 'cyan' },
+              { icon: Zap, title: 'QVAC integration', desc: 'QVAC handles local AI inference inside the app, so users get private, on-device AI without relying on centralized infrastructure.', accent: 'cyan' },
+              { icon: Network, title: 'Pear P2P', desc: 'Pear provides the peer-to-peer runtime and distribution layer, so apps and nodes can connect directly without traditional server infrastructure.', accent: 'purple' },
+              { icon: Database, title: 'Hypercore storage', desc: 'Hypercore provides a secure, distributed append-only log with built-in replication, integrity, and synchronization.', accent: 'amber' },
+              { icon: Cpu, title: 'Multi-network support', desc: 'A single node can watch multiple outside task networks and use available inference capacity wherever work appears.', accent: 'cyan' },
+              { icon: Globe, title: 'LLM Wiki', desc: 'The LLM Wiki is a local AI wiki and memory layer with markdown output, search, linked pages, and peer-to-peer sync.', accent: 'purple' },
+              { icon: Activity, title: 'Real-time task monitor', desc: 'The node watches for available tasks in real time, so spare inference capacity can be routed to outside networks as soon as the app is idle.', accent: 'amber' },
             ].map((f, i) => (
               <FadeUp key={f.title} delay={i * 80}>
                 <GlassCard hoverColor={f.accent} className="h-full">
@@ -328,12 +329,7 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
                     <f.icon size={20} strokeWidth={1.7} className={f.accent === 'cyan' ? 'text-cyan-400' : f.accent === 'purple' ? 'text-purple-400' : 'text-amber-400'} />
                   </div>
                   <h3 style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontWeight: 600, fontSize: '17px' }} className="text-white mb-2">{f.title}</h3>
-                  <p style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontSize: '15px', lineHeight: 1.65 }} className="text-white/40 mb-3">{f.desc}</p>
-                  {f.link && (
-                    <a href={f.link} target="_blank" rel="noopener noreferrer" className="text-sm text-cyan-400/70 hover:text-cyan-300 transition-colors">
-                      {f.link.replace(/^https?:\/\//, '').replace(/\/$/, '')} →
-                    </a>
-                  )}
+                  <p style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontSize: '15px', lineHeight: 1.65 }} className="text-white/40">{f.desc}</p>
                 </GlassCard>
               </FadeUp>
             ))}
@@ -349,9 +345,15 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
           <FadeUp className="text-center mb-16">
             <Label color="cyan">Architecture</Label>
             <h2 style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontWeight: 700, fontSize: 'clamp(28px, 4vw, 44px)', lineHeight: 1.1 }} className="text-white">
-              Core components &<br />
-              <span className="bg-gradient-to-r from-cyan-400 to-cyan-200 bg-clip-text text-transparent">parallel miners.</span>
+              Local AI first.<br />
+              <span className="bg-gradient-to-r from-cyan-400 to-cyan-200 bg-clip-text text-transparent">Shared capacity second.</span>
             </h2>
+            <p style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontSize: '18px' }} className="text-white/40 max-w-2xl mx-auto mt-4">
+              The core stack combines QVAC for inference, Pear for peer-to-peer networking, Hypercore for distributed data, the LLM Wiki for local AI memory, and a task monitor that detects outside work opportunities.
+            </p>
+            <p style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontSize: '16px' }} className="text-white/30 max-w-2xl mx-auto mt-3">
+              When the app needs inference, the node serves the app first. When that capacity is free, the same node can make it available to supported task networks.
+            </p>
           </FadeUp>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -359,15 +361,15 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
               <GlassCard className="h-full">
                 <h3 style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontWeight: 600, fontSize: '16px' }} className="text-white mb-5 flex items-center gap-2">
                   <Server size={16} className="text-cyan-400" />
-                  Core Components
+                  Core components
                 </h3>
                 <div className="space-y-3">
                   {[
-                    { icon: Zap, title: 'QVAC Inference Layer', desc: 'Local AI processing with multiple models', accent: 'cyan' },
-                    { icon: Database, title: 'Hypercore Data Store', desc: 'Distributed append-only log storage', accent: 'green' },
-                    { icon: Network, title: 'Pear P2P Network', desc: 'Decentralized peer discovery', accent: 'blue' },
-                    { icon: Globe, title: 'LLM Wiki (Openviking)', desc: 'AI memory store with search, graph, P2P sync', accent: 'orange' },
-                    { icon: Activity, title: 'Task Monitor', desc: 'Real-time inference task detection', accent: 'purple' },
+                    { icon: Zap, title: 'QVAC inference layer', desc: 'Local AI processing for the app.', accent: 'cyan' },
+                    { icon: Database, title: 'Hypercore data store', desc: 'Distributed append-only storage with replication.', accent: 'green' },
+                    { icon: Network, title: 'Pear P2P network', desc: 'Direct peer-to-peer app and node communication.', accent: 'blue' },
+                    { icon: Globe, title: 'LLM Wiki', desc: 'Local AI memory, search, graph, and sync.', accent: 'orange' },
+                    { icon: Activity, title: 'Task monitor', desc: 'Real-time detection of outside network tasks.', accent: 'purple' },
                   ].map(c => (
                     <div key={c.title} className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
                       <c.icon size={14} className={c.accent === 'cyan' ? 'text-cyan-400' : c.accent === 'green' ? 'text-green-400' : c.accent === 'blue' ? 'text-blue-400' : c.accent === 'orange' ? 'text-orange-400' : 'text-purple-400'} />
@@ -385,14 +387,14 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
               <GlassCard className="h-full">
                 <h3 style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontWeight: 600, fontSize: '16px' }} className="text-white mb-5 flex items-center gap-2">
                   <Cpu size={16} className="text-purple-400" />
-                  Parallel Miners
+                  Supported task networks
                 </h3>
                 <div className="space-y-3">
                   {[
-                    { icon: Zap, name: 'Cortensor', desc: 'Decentralized AI network mining', color: 'purple' },
-                    { icon: Cpu, name: 'Chutes', desc: 'GPU compute validation mining', color: 'blue' },
-                    { icon: Activity, name: 'Fortytwo-Network', desc: 'AI inference network mining', color: 'green' },
-                    { icon: Sparkles, name: 'Earnidle', desc: 'Idle compute protocol mining', color: 'orange' },
+                    { icon: Zap, name: 'Cortensor', desc: 'Decentralized AI network', color: 'purple' },
+                    { icon: Cpu, name: 'Chutes', desc: 'GPU compute validation', color: 'blue' },
+                    { icon: Activity, name: 'Fortytwo', desc: 'AI inference network', color: 'green' },
+                    { icon: Sparkles, name: 'Earnidle', desc: 'Idle compute protocol', color: 'orange' },
                     { icon: Zap, name: 'Routstr', desc: 'Decentralized AI inference router', color: 'yellow' },
                   ].map(m => (
                     <div key={m.name} className="flex items-center gap-3 p-3 rounded-lg group hover:bg-white/[0.04] transition-colors" style={{ background: 'rgba(255,255,255,0.03)' }}>
@@ -408,7 +410,7 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
                 </div>
                 <div className="mt-4 p-4 rounded-xl border border-cyan-400/15 bg-cyan-400/5">
                   <p style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontSize: '15px' }} className="text-cyan-300/70">
-                    <span className="text-cyan-400 font-medium">Parallel Mode:</span> All miners run simultaneously in monitoring mode, detecting inference tasks in real-time.
+                    <span className="text-cyan-400 font-medium">Parallel mode:</span> the node can monitor multiple supported networks at once and direct spare inference capacity to available work.
                   </p>
                 </div>
               </GlassCard>
@@ -417,7 +419,7 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
         </div>
       </section>
 
-      {/* AI Writer — Phone Emulator */}
+      {/* Get Started — AI Writer Example */}
       <section className="relative py-32 px-6">
         <Divider />
         <div className="max-w-6xl mx-auto">
@@ -427,10 +429,76 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
               Download & run locally.
             </h2>
             <p style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontSize: '18px' }} className="text-white/40 max-w-xl mx-auto">
-              Enter your EVM address and download the setup script for your platform. The LLM Wiki runs on localhost:3002 with miner controls in the sidebar.
+              Enter your EVM payout address and download the installer for your platform. The LLM Wiki runs on localhost:3002 with node controls in the sidebar.
             </p>
           </FadeUp>
           <AIWriterExample onNavigateBack={() => {}} onNavigateToDashboard={onNavigateToDashboard} />
+        </div>
+      </section>
+
+      {/* Example app */}
+      <section className="relative py-24 px-6">
+        <Divider />
+        <div className="max-w-3xl mx-auto text-center">
+          <FadeUp>
+            <Label color="cyan">Example app</Label>
+            <h2 style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontWeight: 700, fontSize: 'clamp(24px, 3.5vw, 36px)', lineHeight: 1.1 }} className="text-white mb-4">
+              AI Writer
+            </h2>
+            <p style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontSize: '17px', lineHeight: 1.7 }} className="text-white/40 mb-6">
+              This demo shows how a local AI app can use QVAC for its own inference while also giving users the option to share idle capacity with outside task networks.
+            </p>
+            <p style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontSize: '15px' }} className="text-white/25">
+              In your own app, users get the same simple setup flow. Only an EVM address is required for payouts.
+            </p>
+          </FadeUp>
+        </div>
+      </section>
+
+      {/* 3 Steps */}
+      <section className="relative py-24 px-6">
+        <Divider />
+        <div className="max-w-4xl mx-auto">
+          <FadeUp className="text-center mb-12">
+            <Label color="purple">Start earning in 3 steps</Label>
+          </FadeUp>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { num: '1', title: 'Enter your EVM payout address', desc: 'This is where your share of completed inference work is sent.' },
+              { num: '2', title: 'Download the installer', desc: 'The installer detects your operating system and sets up the node locally.' },
+              { num: '3', title: 'Run the node', desc: 'The app uses local AI when needed. When it is idle, spare inference capacity can be used by supported outside task networks.' },
+            ].map((step, i) => (
+              <FadeUp key={step.num} delay={i * 100}>
+                <div className="rounded-xl border border-white/8 p-6 text-left h-full" style={{ background: 'rgba(10,10,20,0.75)', backdropFilter: 'blur(12px)' }}>
+                  <div style={{ fontFamily: "ui-monospace, SFMono-Regular, 'Cascadia Code', 'Fira Code', monospace", fontSize: '28px', fontWeight: 700, color: '#c9a96e' }} className="mb-3">{step.num}</div>
+                  <h3 style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontWeight: 600, fontSize: '17px' }} className="text-white mb-2">{step.title}</h3>
+                  <p style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontSize: '15px', lineHeight: 1.65 }} className="text-white/40">{step.desc}</p>
+                </div>
+              </FadeUp>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How rewards work */}
+      <section className="relative py-24 px-6">
+        <Divider />
+        <div className="max-w-3xl mx-auto text-center">
+          <FadeUp>
+            <Label color="amber">How rewards work</Label>
+            <div className="text-left mt-8 space-y-4">
+              {[
+                { text: 'Your device serves your own local AI apps first.' },
+                { text: 'When capacity is unused, the node can accept external inference tasks.' },
+                { text: 'When those tasks are completed, rewards go to the inference provider, with revenue sharing available for the app that enabled the node.' },
+              ].map((item, i) => (
+                <div key={i} className="flex items-start gap-3 rounded-xl border border-white/8 p-5" style={{ background: 'rgba(10,10,20,0.75)', backdropFilter: 'blur(12px)' }}>
+                  <span style={{ fontFamily: "ui-monospace, SFMono-Regular, 'Cascadia Code', 'Fira Code', monospace", fontSize: '15px', color: '#c9a96e' }} className="mt-0.5 shrink-0">—</span>
+                  <p style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontSize: '15px', lineHeight: 1.65 }} className="text-white/60">{item.text}</p>
+                </div>
+              ))}
+            </div>
+          </FadeUp>
         </div>
       </section>
 
@@ -441,16 +509,17 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
           <FadeUp className="text-center mb-16">
             <Label>Technology Stack</Label>
             <h2 style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontWeight: 700, fontSize: 'clamp(28px, 4vw, 44px)', lineHeight: 1.1 }} className="text-white">
-              Built on proven tech.
+              Built on proven local-first and P2P infrastructure.
             </h2>
           </FadeUp>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-5">
             {[
               { icon: Terminal, name: 'Node.js', role: 'Runtime', accent: 'green' },
               { icon: Zap, name: 'QVAC', role: 'AI Inference', accent: 'cyan' },
               { icon: Network, name: 'Pear', role: 'P2P Network', accent: 'purple' },
               { icon: Database, name: 'Hypercore', role: 'Data Storage', accent: 'orange' },
+              { icon: Cpu, name: 'Chimera', role: 'Node Infrastructure', accent: 'cyan' },
             ].map((t, i) => (
               <FadeUp key={t.name} delay={i * 80}>
                 <div className="rounded-xl border border-white/8 p-6 text-center transition-all duration-300 hover:border-white/15" style={{ background: 'rgba(10,10,20,0.75)', backdropFilter: 'blur(12px)' }}>
@@ -476,7 +545,7 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
             <span style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontWeight: 700, fontSize: '15px' }} className="text-white/50">Chimera</span>
           </div>
           <p style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontSize: '14px' }} className="text-white/22">
-            Decentralised LLM infrastructure · Open source · Permissionless
+            Decentralized local AI infrastructure · Open source · Permissionless
           </p>
           <div className="flex gap-4">
             <a href="https://github.com/TerexitariusStomp/qvac-chimera" target="_blank" rel="noopener noreferrer" className="text-white/25 hover:text-white/55 transition-colors">
