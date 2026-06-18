@@ -7,6 +7,7 @@ package-lock.json
 data
 *.db
 *.sqlite
+llmwiki-data
 
 # Logs
 logs

@@ -6,7 +6,6 @@ import { HypercoreStore } from '../storage/HypercoreStore.js';
 import { PearP2P } from '../p2p/PearP2P.js';
 import { MinerManager } from '../miners/MinerManager.js';
 import { AuthService } from '../auth/AuthService.js';
-import { TimeScheduler } from '../scheduler/TimeScheduler.js';
 import { TaskMonitor } from '../scheduler/TaskMonitor.js';
 import { WebServer } from '../web/server.js';
 import { WalletManager } from './WalletManager.js';
@@ -23,7 +22,6 @@ export class NodeManager {
     this.p2pNetwork = null;
     this.minerManager = null;
     this.authService = null;
-    this.timeScheduler = null;
     this.taskMonitor = null;
     this.webServer = null;
     this.walletManager = null;
@@ -58,10 +56,6 @@ export class NodeManager {
     this.walletManager = new WalletManager(this.config.miners);
     await this.walletManager.initialize();
     
-    // Initialize time scheduler
-    this.timeScheduler = new TimeScheduler(this.config.scheduler || {});
-    await this.timeScheduler.initialize();
-    
     // Initialize task monitor
     this.taskMonitor = new TaskMonitor();
     await this.taskMonitor.initialize();
@@ -81,11 +75,6 @@ export class NodeManager {
     // Initialize miner manager with task monitor and inference router
     this.minerManager = new MinerManager(this.config.miners, this.dataStore, this.taskMonitor, this.inferenceRouter);
     await this.minerManager.initialize();
-    
-    // Set up mode change handler
-    this.timeScheduler.onModeChange((newMode) => {
-      this.handleModeChange(newMode);
-    });
     
     // Initialize web server for dashboard API
     this.webServer = new WebServer(this.config.web || {}, this);
@@ -163,7 +152,6 @@ export class NodeManager {
     this.isRunning = true;
     this.logger.info('Node started successfully');
     this.logger.info(`Node ID: ${this.config.node.id}`);
-    this.logger.info(`Current mode: ${this.timeScheduler.getCurrentMode()}`);
     this.logger.info(`Dashboard API available at http://localhost:3000/api/status`);
   }
   
@@ -188,23 +176,11 @@ export class NodeManager {
     this.logger.info('Node stopped successfully');
   }
   
-  handleModeChange(newMode) {
-    this.logger.info(`Mode changed to: ${newMode}`);
-    
-    if (newMode === 'night') {
-      // Night mode: AI Writer idle, miners in monitoring mode
-      this.logger.info('Night mode: AI Writer idle, miners monitoring');
-    } else {
-      // Day mode: Inference earning active
-      this.logger.info('Day mode: Inference earning active');
-    }
-  }
-  
   getStatus() {
     return {
       running: this.isRunning,
       nodeId: this.config.node.id,
-      mode: this.timeScheduler?.getStatus(),
+      // mode removed
       inference: this.inferenceLayer?.getStatus(),
       localLLM: this.localLLM?.getStatus(),
       inferenceRouter: this.inferenceRouter?.getStatus(),

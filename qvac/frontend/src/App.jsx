@@ -74,7 +74,7 @@ function App() {
       {status && (
         <>
           <p style={{ color: '#94a3b8', marginBottom: 24 }}>
-            Running: {status.running ? 'YES' : 'NO'} | Node: {status.nodeId?.slice(0, 8)}... | Mode: {status.mode?.currentMode}
+            Running: {status.running ? 'YES' : 'NO'} | Node: {status.nodeId?.slice(0, 8)}...
           </p>
 
           <h2 style={{ color: '#60a5fa', marginTop: 24, marginBottom: 12 }}>Active Miners</h2>

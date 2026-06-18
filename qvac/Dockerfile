@@ -1,53 +1,41 @@
-# Dockerfile for QVAC-Pear Miner Node with centralized inference
-FROM node:22-alpine
+# Dockerfile for QVAC Chimera Wiki + P2P Node
+FROM node:20-bookworm
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apk add --no-cache \
-    git \
-    python3 \
-    py3-pip \
-    build-base \
-    bash \
-    curl
+# Install build tools for native modules (hypercore, hyperswarm, leveldb, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git python3 make g++ bash curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy root package files and install backend deps
+# ─── Backend deps ───
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install
 
-# Copy and build frontend
+# ─── Frontend deps & build ───
 COPY frontend/package*.json ./frontend/
-WORKDIR /app/frontend
-RUN npm ci
-COPY frontend/ ./
-RUN npx vite build
-WORKDIR /app
+RUN cd frontend && npm install
+COPY frontend/ ./frontend/
+RUN cd frontend && npm run build
 
-# Copy source code and config
+# ─── Copy source & config ───
 COPY src/ ./src/
 COPY config.json ./
-COPY ecosystem.config.cjs ./
-COPY start.sh stop.sh ./
-RUN chmod +x start.sh stop.sh
+COPY deploy-vps.sh ./
 
-# Use .env.example as default if no .env is provided
-COPY .env.example .env.example
-RUN [ -f .env ] || cp .env.example .env
-
-# Create data and logs directories
-RUN mkdir -p /app/data /app/logs
+# ─── Data volume mount point ───
+RUN mkdir -p /app/llmwiki-data/wiki /app/llmwiki-data/index
 
 # Environment
 ENV NODE_ENV=production
+ENV PORT=3002
 
-# Expose API port
-EXPOSE 3000
+# Expose wiki web server port
+EXPOSE 3002
 
-# Health check
+# Health check on wiki API
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -fs http://localhost:3000/api/status || exit 1
+  CMD curl -fs http://localhost:3002/api/status || exit 1
 
-# Start the application
+# Start
 CMD ["node", "src/index.js"]
