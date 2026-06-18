@@ -70,7 +70,7 @@ export class NodeManager {
     this.relay = new RelayServer({ port: this.config.relay?.port || 8765 });
     
     // Initialize centralized inference router (with relay for mobile forwarding)
-    this.inferenceRouter = new InferenceRouter(this.inferenceLayer, this.relay);
+    this.inferenceRouter = new InferenceRouter(this.inferenceLayer, this.relay, this.config);
     await this.inferenceRouter.initialize();
 
     // Initialize local LLM for AI writing

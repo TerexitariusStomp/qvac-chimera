@@ -422,19 +422,19 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
               Download for your platform.
             </h2>
             <p style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif", fontSize: '18px' }} className="text-white/40 max-w-xl mx-auto">
-              Install the desktop app. It bundles a supervisor that handles Docker automatically. No terminal required.
+              All platforms run @qvac/sdk. Desktop uses hardened Docker containers. Mobile uses Expo with native sandboxing.
             </p>
           </FadeUp>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {[
-              { name: 'Windows', ext: '.msi', icon: 'W', color: 'cyan', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest' },
-              { name: 'macOS', ext: '.dmg', icon: 'M', color: 'purple', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest' },
-              { name: 'Linux (.deb)', ext: '.deb', icon: 'L', color: 'green', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest/download/Chimera_1.0.0_amd64.deb' },
-              { name: 'Linux (.rpm)', ext: '.rpm', icon: 'L', color: 'green', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest/download/Chimera-1.0.0-1.x86_64.rpm' },
-              { name: 'Linux (AppImage)', ext: '.AppImage', icon: 'L', color: 'green', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest' },
-              { name: 'Android', ext: 'Termux + Node.js', icon: 'A', color: 'amber', url: '#mobile-setup' },
-              { name: 'iOS', ext: 'Core ML inference', icon: 'i', color: 'amber', url: '#mobile-setup' },
+              { name: 'Windows', ext: '@qvac/sdk in Docker', icon: 'W', color: 'cyan', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest' },
+              { name: 'macOS', ext: '@qvac/sdk in Docker', icon: 'M', color: 'purple', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest' },
+              { name: 'Linux (.deb)', ext: '@qvac/sdk in Docker', icon: 'L', color: 'green', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest/download/Chimera_1.0.0_amd64.deb' },
+              { name: 'Linux (.rpm)', ext: '@qvac/sdk in Docker', icon: 'L', color: 'green', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest/download/Chimera-1.0.0-1.x86_64.rpm' },
+              { name: 'Linux (AppImage)', ext: '@qvac/sdk in Docker', icon: 'L', color: 'green', url: 'https://github.com/TerexitariusStomp/qvac-chimera/releases/latest' },
+              { name: 'Android', ext: 'Expo + @qvac/sdk', icon: 'A', color: 'amber', url: '#mobile-setup' },
+              { name: 'iOS', ext: 'Expo + @qvac/sdk', icon: 'i', color: 'amber', url: '#mobile-setup' },
             ].map((p, i) => (
               <FadeUp key={p.name} delay={i * 80}>
                 <a
@@ -473,9 +473,9 @@ export default function Landing({ onNavigateToDashboard, onNavigateToMiner, onNa
           </FadeUp>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { num: '1', title: 'Install the desktop app', desc: 'Download the native installer for your OS. It bundles a supervisor that handles Docker and container setup automatically.' },
-              { num: '2', title: 'Enter your EVM payout address', desc: 'Open the app, enter your EVM address once, and the supervisor configures everything. No terminal or manual Docker setup required.' },
-              { num: '3', title: 'Start the node', desc: 'Click Start in the app. The supervisor pulls the Chimera image, launches the container, and opens the local AI interface on localhost.' },
+              { num: '1', title: 'Install for your OS', desc: 'Desktop: download the installer — it runs @qvac/sdk inside a hardened Docker container with non-root user and namespace isolation. Mobile: install the Expo app with native sandboxing.' },
+              { num: '2', title: 'Enter your EVM payout address', desc: 'Open the app, enter your EVM address once. The supervisor auto-configures the QVAC SDK, P2P networking, and relay for mobile edge devices.' },
+              { num: '3', title: 'Start earning', desc: 'Click Start. The node joins task networks, receives inference jobs, and routes them to local QVAC SDK or connected mobile devices. Rewards go to your EVM address.' },
             ].map((step, i) => (
               <FadeUp key={step.num} delay={i * 100}>
                 <div className="rounded-xl border border-white/8 p-6 text-left h-full" style={{ background: 'rgba(10,10,20,0.75)', backdropFilter: 'blur(12px)' }}>

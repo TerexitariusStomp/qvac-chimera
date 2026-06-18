@@ -1,17 +1,21 @@
 import { Logger } from '../core/Logger.js';
+import { QVACSDKWrapper } from './QVACSDKWrapper.js';
 
 export class InferenceRouter {
-  constructor(qvacInferenceLayer, relayServer = null) {
+  constructor(qvacInferenceLayer, relayServer = null, config = {}) {
     this.qvacInference = qvacInferenceLayer;
     this.relay = relayServer;
+    this.config = config;
     this.logger = new Logger('InferenceRouter');
     this.activeRoutes = new Map();
     this.isRunning = false;
+    this.sdkWrapper = new QVACSDKWrapper(config.inference || {});
   }
 
   async initialize() {
     this.logger.info('Initializing centralized inference router...');
-    this.logger.info('All miners will route through single QVAC inference instance');
+    this.logger.info('Using @qvac/sdk for local inference (hardened container)');
+    await this.sdkWrapper.initialize();
     this.isRunning = true;
     this.logger.info('Centralized inference router initialized');
   }
@@ -49,30 +53,46 @@ export class InferenceRouter {
     }
     
     try {
-      // Route through the centralized QVAC inference layer
-      const result = await this.qvacInference.handleInferenceRequest({
-        ...task,
-        source: minerName,
-        routeId
-      });
+      // Route through @qvac/sdk (hardened container inference)
+      const result = await this.sdkWrapper.generate(
+        task.prompt || task.input || '',
+        { maxTokens: task.maxTokens || 256, temperature: task.temperature || 0.7 }
+      );
 
-      this.logger.info(`Inference completed for ${minerName}: ${routeId}`);
+      this.logger.info(`QVAC SDK inference completed for ${minerName}: ${routeId}`);
       
       return {
         success: true,
         routeId,
         miner: minerName,
-        source: 'local',
+        source: 'qvac-sdk',
         result
       };
     } catch (error) {
-      this.logger.error(`Inference failed for ${minerName}: ${error.message}`);
-      return {
-        success: false,
-        routeId,
-        miner: minerName,
-        error: error.message
-      };
+      this.logger.error(`QVAC SDK inference failed for ${minerName}: ${error.message}`);
+      // Final fallback: legacy inference layer
+      try {
+        const result = await this.qvacInference.handleInferenceRequest({
+          ...task,
+          source: minerName,
+          routeId
+        });
+        return {
+          success: true,
+          routeId,
+          miner: minerName,
+          source: 'legacy',
+          result
+        };
+      } catch (legacyError) {
+        this.logger.error(`Legacy inference also failed: ${legacyError.message}`);
+        return {
+          success: false,
+          routeId,
+          miner: minerName,
+          error: `${error.message}; legacy: ${legacyError.message}`
+        };
+      }
     }
   }
 
