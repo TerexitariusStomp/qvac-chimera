@@ -1,28 +1,24 @@
 #!/bin/bash
-# Deploy QVAC Chimera to Hostinger VPS
+# Deploy QVAC Chimera via Docker
 set -e
 
 REPO_URL="https://github.com/TerexitariusStomp/qvac-chimera.git"
-DEPLOY_DIR="~/qvac-chimera"
-NODE_VERSION="20"
+DEPLOY_DIR="$HOME/qvac-chimera"
 
-echo "=== Chimera VPS Deploy Script ==="
+echo "=== Chimera Docker Deploy ==="
 
-# Update system
-sudo apt-get update -y
-
-# Install Node.js if not present
-if ! command -v node &> /dev/null; then
-  echo "Installing Node.js ${NODE_VERSION}..."
-  curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | sudo -E bash -
-  sudo apt-get install -y nodejs
+# Install Docker if not present
+if ! command -v docker &> /dev/null; then
+  echo "Installing Docker..."
+  curl -fsSL https://get.docker.com | sh
+  sudo usermod -aG docker $(whoami)
 fi
 
-# Install git
-sudo apt-get install -y git
-
-# Install build tools for native modules
-sudo apt-get install -y build-essential python3
+# Install Docker Compose if not present
+if ! command -v docker-compose &> /dev/null; then
+  echo "Installing Docker Compose..."
+  sudo apt-get update && sudo apt-get install -y docker-compose-plugin
+fi
 
 # Clone or pull repo
 if [ -d "$DEPLOY_DIR" ]; then
@@ -31,38 +27,15 @@ if [ -d "$DEPLOY_DIR" ]; then
 else
   echo "Cloning repo..."
   git clone "$REPO_URL" "$DEPLOY_DIR"
-  cd "$DEPLOY_DIR"
 fi
 
-# Install dependencies
-cd qvac
-npm install
+cd "$DEPLOY_DIR/qvac"
 
-# Build frontend
-cd frontend
-npm install
-npm run build
-cd ..
-
-# Clean up old dist and copy fresh build
-rm -rf dist
-mkdir -p dist
-cp -r frontend/dist/* dist/
-cp dist/index.html dist/404.html 2>/dev/null || true
-
-# Start with PM2 (install if needed)
-if ! command -v pm2 &> /dev/null; then
-  sudo npm install -g pm2
-fi
-
-# Save old process if running
-pm2 delete qvac-chimera 2>/dev/null || true
-
-# Start app
-pm2 start src/index.js --name qvac-chimera --cwd "$DEPLOY_DIR/qvac"
-pm2 save
-pm2 startup systemd -u $(whoami) --hp $HOME
+# Build and start
+docker-compose down 2>/dev/null || true
+docker-compose build --no-cache
+docker-compose up -d
 
 echo "=== Deploy Complete ==="
-echo "App should be running on port 3002"
-echo "Check: pm2 logs qvac-chimera"
+echo "Wiki: http://$(hostname -I | awk '{print $1}'):3002"
+echo "Logs: docker-compose logs -f"
