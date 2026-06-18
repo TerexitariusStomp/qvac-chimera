@@ -9,10 +9,15 @@
     "qvac": {
       "endpoint": "local",
       "models": [
-        "llama-2-7b",
-        "llama-2-13b"
+        "llama-3.2-1b-instruct"
       ],
+      "modelConst": "LLAMA_3_2_1B_INST_Q4_0",
       "maxConcurrent": 4
+    },
+    "localLLM": {
+      "model": "llama-3.2-1b-instruct",
+      "qvacModelConst": "LLAMA_3_2_1B_INST_Q4_0",
+      "timeout": 300000
     },
     "idleTimeout": 300000
   },
