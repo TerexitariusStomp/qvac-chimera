@@ -15,7 +15,6 @@ export class EarnidleMiner {
     this.name = 'earnidle';
     this.logger = new Logger('EarnidleMiner');
     this.isRunning = false;
-    this.monitoringMode = false;
     this.walletAddress = config.walletAddress || null;
     this.network = config.network || 'solana';
     this.apiBase = config.apiBase || 'https://api.earnidle.com';
@@ -29,6 +28,7 @@ export class EarnidleMiner {
     this.totalTokens = 0;
     this.earningsUSDC = 0;
     this._pollTimer = null;
+    this._pollCount = 0;
   }
 
   async initialize() {
@@ -65,9 +65,8 @@ export class EarnidleMiner {
 
   async startMonitoring() {
     if (this.isRunning) { this.logger.warn('Already running'); return; }
-    this.logger.info('Starting IDLE worker in monitoring mode...');
+    this.logger.info('Starting IDLE worker...');
     this.isRunning = true;
-    this.monitoringMode = true;
     this._runLoop();
   }
 
@@ -75,7 +74,6 @@ export class EarnidleMiner {
     if (!this.isRunning) return;
     this.logger.info('Stopping IDLE worker...');
     this.isRunning = false;
-    this.monitoringMode = false;
     if (this._pollTimer) clearTimeout(this._pollTimer);
     this._pollTimer = null;
   }
@@ -88,6 +86,10 @@ export class EarnidleMiner {
         await this._pollAndRun();
       } catch (e) {
         this.logger.error(`Polling error: ${e.message}`);
+      }
+      this._pollCount++;
+      if (this._pollCount % 10 === 0) {
+        this.logger.info(`IDLE heartbeat: ${this._pollCount} polls, ${this.jobsCompleted} jobs, ${this.earningsUSDC.toFixed(4)} USDC`);
       }
       // IDLE recommends ~30s between polls
       await this._sleep(this.config.pollInterval || 30000);
@@ -110,21 +112,27 @@ export class EarnidleMiner {
     let job = null;
     try {
       const res = await fetch(pollUrl, { headers: { 'Accept': 'application/json' } });
-      if (res.status === 204 || res.status === 404) return; // no jobs
+      if (res.status === 204) {
+        this.logger.debug('IDLE poll: no jobs available (204)');
+        return;
+      }
+      if (res.status === 404) {
+        this.logger.warn(`IDLE poll: endpoint not found (404) — check apiBase config`);
+        return;
+      }
+      if (!res.ok) {
+        this.logger.warn(`IDLE poll: HTTP ${res.status}`);
+        return;
+      }
       job = await res.json();
     } catch (e) {
-      this.logger.debug(`No job available (${e.message})`);
+      this.logger.debug(`IDLE poll: network error (${e.message})`);
       return;
     }
 
     if (!job || !job.id) return;
 
     this.logger.info(`Job ${job.id.slice(0, 8)}… received | prompt: ${(job.prompt || '').slice(0, 60)}…`);
-
-    if (this.monitoringMode) {
-      this.logger.info('[monitoring] Would process job — skipping execution');
-      return;
-    }
 
     // Run inference via QVAC SDK or inference layer
     const result = await this._runInference(job);
@@ -217,7 +225,6 @@ export class EarnidleMiner {
   getStatus() {
     return {
       running: this.isRunning,
-      monitoringMode: this.monitoringMode,
       name: this.name,
       nodeName: this.nodeName,
       walletConfigured: !!this.walletAddress,
