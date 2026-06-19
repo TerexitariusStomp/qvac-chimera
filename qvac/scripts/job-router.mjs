@@ -132,10 +132,10 @@ async function callInference(node, jobId, requestHash) {
       throw new Error(`HTTP ${res.status}: ${await res.text()}`);
     }
     const data = await res.json();
-    // The ai-write endpoint returns { id, title, body, source, model, prompt, createdAt }
-    // We hash the body to create a verifiable response hash
-    const body = data.body || data.output || '';
-    const responseHash = hashString(body);
+    // The ai-write endpoint returns { success, data: { id, title, body, ... } }
+    const payload = data.data || data;
+    const body = payload.body || payload.output || payload.result || '';
+    const responseHash = hashString(body || JSON.stringify(data));
     console.log(`[router] ${node.id} returned ${body.length} chars, hash: ${responseHash}`);
     return { success: true, responseHash };
   } catch (e) {

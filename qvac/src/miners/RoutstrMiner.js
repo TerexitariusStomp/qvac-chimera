@@ -1,5 +1,26 @@
 import { Logger } from '../core/Logger.js';
+import { spawn, execSync } from 'child_process';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { homedir } from 'os';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
+/**
+ * RoutstrMiner — Routstr Network provider node
+ *
+ * Routstr is a decentralized AI inference router using Nostr for
+ * discovery and Cashu / Bitcoin Lightning for payments.
+ *
+ * This miner manages the Routstr Docker container lifecycle.
+ *
+ * Setup:
+ *   1. Docker + Docker Compose installed
+ *   2. Fill in RECEIVE_LN_ADDRESS in ~/.routstr/.env for payouts
+ *   3. Add at least one upstream API key (OpenAI, Anthropic, etc.)
+ *
+ * Frontend: https://routstr.com
+ * Your node appears in Nostr relay discovery once online.
+ */
 export class RoutstrMiner {
   constructor(config, inferenceLayer = null, evmAddress = null) {
     this.config = config;
@@ -7,140 +28,275 @@ export class RoutstrMiner {
     this.name = 'routstr';
     this.logger = new Logger('RoutstrMiner');
     this.isRunning = false;
-    this.monitoringMode = false;
     this.evmAddress = evmAddress || config.evmAddress || null;
-    this.walletAddress = config.walletAddress || null;
     this.network = config.network || 'nostr';
-    this.platform = config.platform || 'https://beta.platform.routstr.com/';
-    this.walletType = config.walletType || 'nip-60';
-    this.multisigAddress = null; // Auto-generated from EVM
-    this.isMultisig = config.multisigType === 'cashu-p2sh' || !config.walletAddress;
+    this.platform = config.platform || 'https://routstr.com';
+    this.nsec = config.nsec || '';
+    this.npub = config.npub || '';
+    this.nodeName = config.name || 'Chimera-Routstr-Node';
+    this.description = config.description || 'QVAC-Chimera node';
+    this.receiveLnAddress = config.receiveLnAddress || '';
+    this.adminPassword = config.adminPassword || 'chimera-admin';
+    this.apiPort = config.apiPort || 8000;
+
+    // Paths
+    this.routstrHome = config.routstrHome || join(homedir(), '.routstr');
+    this.envFile = join(this.routstrHome, '.env');
+    this.composeDir = config.composeDir || this._findComposeDir();
+
+    // Runtime
+    this._proc = null;
+    this._apiInfo = null;
+  }
+
+  _findComposeDir() {
+    // Try to find the routstr/ directory relative to the project root
+    const candidates = [
+      join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'routstr'),
+      join(process.cwd(), 'routstr'),
+      join(homedir(), 'CascadeProjects', 'qvac-chimera', 'routstr'),
+      '/home/user/CascadeProjects/qvac-chimera/routstr'
+    ];
+    for (const p of candidates) {
+      if (existsSync(join(p, 'docker-compose.yml'))) return p;
+    }
+    return join(process.cwd(), 'routstr');
   }
 
   async initialize() {
     this.logger.info('Initializing Routstr miner...');
 
-    if (this.isMultisig && this.evmAddress) {
-      // Generate deterministic multisig from EVM address
-      this.multisigAddress = this.deriveMultisigAddress(this.evmAddress);
-      this.logger.info(`Routstr multisig generated: ${this.maskAddress(this.multisigAddress)}`);
-      this.logger.info(`Protocol: Cashu NIP-60 P2SH (2-of-3) | EVM parent: ${this.evmAddress.slice(0, 10)}...`);
-    } else if (this.walletAddress) {
-      // Legacy mode: direct nsec address
-      if (!this.validateNsecAddress(this.walletAddress)) {
-        this.logger.error('Invalid Nostr nsec address');
-        throw new Error('Invalid nsec format');
+    // Ensure .env exists
+    await this._ensureEnv();
+
+    // Validate nsec
+    if (this.nsec) {
+      if (!this.validateNsec(this.nsec)) {
+        throw new Error('Invalid Nostr nsec format');
       }
-      this.logger.info(`Routstr nsec configured: ${this.maskAddress(this.walletAddress)}`);
+      this.logger.info(`Nostr identity: ${this.maskKey(this.npub || this.nsec)}`);
     } else {
-      this.logger.warn('No EVM address or nsec configured - rewards cannot be received');
+      this.logger.warn('No nsec configured — cannot announce on Nostr');
+    }
+
+    // Check Docker
+    const dockerOk = this._dockerAvailable();
+    if (!dockerOk) {
+      this.logger.warn('Docker not available — cannot start Routstr container');
+    } else {
+      this.logger.info('Docker available');
+    }
+
+    // Check compose dir
+    if (!existsSync(this.composeDir)) {
+      this.logger.warn(`Routstr compose dir not found: ${this.composeDir}`);
+    } else {
+      this.logger.info(`Routstr compose dir: ${this.composeDir}`);
     }
 
     this.logger.info(`Platform: ${this.platform}`);
     this.logger.info('Routstr miner initialized');
   }
 
-  deriveMultisigAddress(evmAddress) {
-    // Deterministic derivation from EVM address
-    const seed = `${evmAddress}:nostr:multisig`;
-    const hash = this.simpleHash(seed);
-    return `npub1${hash.substring(0, 58)}`;
-  }
+  // ─── Environment Setup ───
 
-  simpleHash(str) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    const hex = Math.abs(hash).toString(16).repeat(20);
-    return hex.substring(0, 64);
-  }
+  async _ensureEnv() {
+    mkdirSync(this.routstrHome, { recursive: true });
 
-  validateNsecAddress(address) {
-    // Nostr nsec addresses start with "nsec1" and are bech32 encoded
-    return /^nsec1[a-z0-9]+$/.test(address) && address.length > 50;
-  }
-
-  maskAddress(address) {
-    if (!address || address.length < 10) return '***';
-    return `${address.substring(0, 10)}...${address.substring(address.length - 6)}`;
-  }
-  
-  async start() {
-    if (this.isRunning) {
-      this.logger.warn('Routstr miner already running');
-      return;
-    }
-    
-    this.logger.info('Starting Routstr miner...');
-    
-    // Start Routstr proxy process
-    // In real implementation, this would spawn the actual Routstr proxy
-    // Routstr provides decentralized AI inference routing with Bitcoin Lightning payments
-    
-    this.isRunning = true;
-    this.logger.info('Routstr miner started');
-  }
-  
-  async startMonitoring() {
-    if (this.isRunning && this.monitoringMode) {
-      this.logger.warn('Routstr miner already in monitoring mode');
-      return;
-    }
-    
-    this.logger.info('Starting Routstr miner in monitoring mode...');
-    
-    // Start Routstr proxy in monitoring mode (lightweight, watching for inference requests)
-    // In real implementation, this would start the proxy in a low-resource monitoring state
-    // Routstr routes AI requests to various models via decentralized discovery
-    
-    this.isRunning = true;
-    this.monitoringMode = true;
-    this.logger.info('Routstr miner monitoring mode started');
-  }
-  
-  async stop() {
-    if (!this.isRunning) {
-      return;
-    }
-    
-    this.logger.info('Stopping Routstr miner...');
-    
-    // Stop Routstr proxy process
-    
-    this.isRunning = false;
-    this.monitoringMode = false;
-    this.logger.info('Routstr miner stopped');
-  }
-  
-  async onInferenceTask(task) {
-    this.logger.info(`Inference task detected: ${task.id || 'unknown'}`);
-    
-    if (this.inferenceLayer) {
-      this.logger.info('Routing task through centralized inference router');
-      const result = await this.inferenceLayer.handleInferenceRequest(task, this.name);
-      this.logger.info(`Inference result: ${result.success ? 'success' : 'failed'}`);
-      return result;
+    if (!existsSync(this.envFile)) {
+      this.logger.info('Creating Routstr .env file...');
+      const content = this._buildEnvContent();
+      writeFileSync(this.envFile, content, 'utf-8');
+      this.logger.info(`Routstr .env created: ${this.envFile}`);
     } else {
-      this.logger.warn('No inference router available - task not processed');
-      return { success: false, error: 'No inference router available' };
+      this.logger.info(`Routstr .env exists: ${this.envFile}`);
     }
   }
-  
+
+  _buildEnvContent() {
+    return `# Routstr Provider Node Configuration
+# Generated by QVAC-Chimera
+
+# ─── Node Identity ───
+NAME="${this.nodeName}"
+DESCRIPTION="${this.description}"
+NSEC=${this.nsec}
+
+# ─── Admin ───
+ADMIN_PASSWORD=${this.adminPassword}
+
+# ─── Lightning Payouts (fill in to receive payments) ───
+# Example: yourname@walletofsatoshi.com
+RECEIVE_LN_ADDRESS=${this.receiveLnAddress}
+
+# ─── Upstream AI Providers (fill in at least one) ───
+# Routstr resells these APIs. You set a profit margin on top.
+# OPENAI_API_KEY=
+# ANTHROPIC_API_KEY=
+# OPENROUTER_API_KEY=
+
+# ─── Optional: connect to Chimera's local inference ───
+# CHIMERA_INFERENCE_URL=http://host.docker.internal:3002/api/inference
+`;
+  }
+
+  // ─── Helpers ───
+
+  validateNsec(key) {
+    return /^nsec1[a-z0-9]+$/.test(key) && key.length > 50;
+  }
+
+  maskKey(key) {
+    if (!key || key.length < 12) return '***';
+    return `${key.substring(0, 10)}...${key.substring(key.length - 6)}`;
+  }
+
+  _dockerAvailable() {
+    try {
+      execSync('docker version', { stdio: 'ignore' });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // ─── Lifecycle ───
+
+  async start() {
+    if (this.isRunning) { this.logger.warn('Already running'); return; }
+
+    if (!this._dockerAvailable()) {
+      this.logger.error('Docker not available — cannot start Routstr');
+      return;
+    }
+
+    if (!existsSync(this.composeDir)) {
+      this.logger.error(`Compose directory missing: ${this.composeDir}`);
+      return;
+    }
+
+    this.logger.info('Starting Routstr container...');
+
+    // Pull latest image and start
+    try {
+      execSync('docker compose pull', { cwd: this.composeDir, stdio: 'ignore' });
+      this._proc = spawn('docker', ['compose', 'up', '-d'], {
+        cwd: this.composeDir,
+        detached: false,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      this._proc.stdout.on('data', (data) => {
+        const line = data.toString().trim();
+        if (line) this.logger.info(`[routstr] ${line}`);
+      });
+      this._proc.stderr.on('data', (data) => {
+        const line = data.toString().trim();
+        if (line) this.logger.warn(`[routstr] ${line}`);
+      });
+      this._proc.on('exit', (code) => {
+        this.logger.info(`docker compose exited (code ${code})`);
+      });
+
+      // Wait for container to be ready
+      await this._waitForReady();
+    } catch (e) {
+      this.logger.error(`Failed to start Routstr: ${e.message}`);
+      return;
+    }
+
+    this.isRunning = true;
+    this.logger.info('Routstr container started');
+    this.logger.info(`Dashboard: http://localhost:${this.apiPort}`);
+    this.logger.info('Your node announces on Nostr relays once online');
+    this.logger.info('Add an upstream API key (OpenAI, etc.) via the dashboard to begin earning');
+  }
+
+  async startMonitoring() {
+    // Routstr is always "monitoring" via Nostr relay subscriptions
+    await this.start();
+  }
+
+  async stop() {
+    if (!this.isRunning) return;
+    this.logger.info('Stopping Routstr container...');
+
+    try {
+      execSync('docker compose down', { cwd: this.composeDir, stdio: 'ignore' });
+    } catch (e) {
+      this.logger.warn(`docker compose down: ${e.message}`);
+    }
+
+    if (this._proc && !this._proc.killed) {
+      this._proc.kill('SIGTERM');
+    }
+
+    this.isRunning = false;
+    this.logger.info('Routstr container stopped');
+  }
+
+  // ─── Health / Status ───
+
+  async _waitForReady() {
+    const infoUrl = `http://localhost:${this.apiPort}/v1/info`;
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      try {
+        const res = await fetch(infoUrl, { signal: AbortSignal.timeout(3000) });
+        if (res.ok) {
+          this._apiInfo = await res.json();
+          this.logger.info('Routstr API is ready');
+          return;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    this.logger.warn('Routstr API did not become ready within 60s');
+  }
+
+  async fetchStatus() {
+    try {
+      const res = await fetch(`http://localhost:${this.apiPort}/v1/info`, {
+        signal: AbortSignal.timeout(5000)
+      });
+      if (res.ok) {
+        this._apiInfo = await res.json();
+        return this._apiInfo;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }
+
+  // ─── Inference ───
+
+  async onInferenceTask(task) {
+    this.logger.info(`Routstr inference task: ${task.id || 'unknown'}`);
+    if (this.inferenceLayer) {
+      return await this.inferenceLayer.handleInferenceRequest(task, this.name);
+    }
+    return { success: false, error: 'No inference router available' };
+  }
+
+  // ─── Status ───
+
   getStatus() {
     return {
       running: this.isRunning,
-      monitoringMode: this.monitoringMode,
       name: this.name,
-      walletConfigured: this.isMultisig ? !!this.multisigAddress : !!this.walletAddress,
-      isMultisig: this.isMultisig,
-      multisigAddress: this.isMultisig ? this.maskAddress(this.multisigAddress) : null,
+      nodeName: this.nodeName,
+      npub: this.maskKey(this.npub),
+      nsecConfigured: !!this.nsec,
       network: this.network,
       platform: this.platform,
-      walletType: this.walletType,
-      evmParent: this.evmAddress ? this.evmAddress.slice(0, 10) + '...' : null
+      apiPort: this.apiPort,
+      dockerAvailable: this._dockerAvailable(),
+      composeDirFound: existsSync(this.composeDir),
+      envFileFound: existsSync(this.envFile),
+      receiveLnAddressConfigured: !!this.receiveLnAddress,
+      apiInfo: this._apiInfo
     };
   }
 }

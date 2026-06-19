@@ -81,11 +81,14 @@
       "enabled": true,
       "config": {
         "network": "nostr",
-        "platform": "https://beta.platform.routstr.com/",
-        "protocolAddress": "npub1qvacprotocolmultisigabc123xyz789",
-        "walletType": "nip-60",
-        "multisigType": "cashu-p2sh",
-        "multisigThreshold": "2-of-3",
+        "platform": "https://routstr.com",
+        "nsec": "nsec12w7583qzhfn67m2kk8zfkzm0lgmmwr4724tkfxsg08sk4jyhcv4sp778za",
+        "npub": "npub1f60vyl802rs2nt8n3lrw89jq9xt6rqzuw8ddxz0vwdqwm8v3xk5sgj9aef",
+        "name": "Chimera-Routstr-Node",
+        "description": "QVAC-Chimera decentralized AI inference node",
+        "receiveLnAddress": "",
+        "adminPassword": "chimera-routstr-admin",
+        "apiPort": 8000,
         "autoFundSweep": true
       }
     },
