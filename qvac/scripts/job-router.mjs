@@ -127,7 +127,7 @@ async function callInference(node, jobId, requestHash) {
     const res = await fetch(node.url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: requestHash, title: jobId }),
+      body: JSON.stringify({ prompt: requestHash, max_new_tokens: 20 }),
     });
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}: ${await res.text()}`);

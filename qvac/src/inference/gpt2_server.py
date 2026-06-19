@@ -1,25 +1,17 @@
 #!/usr/bin/env python3
-"""
-Lightweight GPT-2 inference server for QVAC Chimera.
-Loads model once at startup; serves via HTTP on port 3005.
-"""
 import json
-import sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from transformers import pipeline
 
 MODEL_NAME = "gpt2"
 PORT = 3005
 
 print(f"[inference] Loading {MODEL_NAME}...", flush=True)
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForCausalLM.from_pretrained(MODEL_NAME)
-pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
+pipe = pipeline("text-generation", model=MODEL_NAME, device=-1)
 print(f"[inference] {MODEL_NAME} ready on port {PORT}", flush=True)
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args):
-        pass  # suppress logs
+    def log_message(self, format, *args): pass
 
     def do_POST(self):
         if self.path != "/infer":
@@ -30,11 +22,10 @@ class Handler(BaseHTTPRequestHandler):
             body = self.rfile.read(content_len).decode('utf-8')
             data = json.loads(body)
             prompt = data.get("prompt", "Hello")
-            max_len = data.get("max_length", 100)
+            max_new = data.get("max_new_tokens", 20)
 
-            results = pipe(prompt, max_length=max_len, num_return_sequences=1, do_sample=True, temperature=0.7)
+            results = pipe(prompt, max_new_tokens=max_new, num_return_sequences=1, do_sample=True, temperature=0.7, pad_token_id=50256)
             output = results[0]["generated_text"]
-            # Strip prompt repetition if present
             if output.lower().startswith(prompt.lower()):
                 output = output[len(prompt):].strip()
 
@@ -59,7 +50,4 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     server = HTTPServer(("127.0.0.1", PORT), Handler)
     print(f"[inference] Server running at http://127.0.0.1:{PORT}/infer", flush=True)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
+    server.serve_forever()
