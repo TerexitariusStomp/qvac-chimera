@@ -822,14 +822,19 @@ Copy the topic hex and invite others to join.
     // Ensure the inference node is running (idempotent)
     if (!this.nodeManager.isRunning) await this.nodeManager.start();
 
-    let machineOwner = body.machineOwnerEVM || body.evmAddress || '';
-    let appDev = body.appDeveloperEVM || '';
+    let machineOwner = (body.machineOwnerEVM || body.evmAddress || '').trim();
+    let appDev = (body.appDeveloperEVM || '').trim();
+
+    // ─── Require a valid EVM address before miners can start ───
+    const evmRegex = /^0x[a-fA-F0-9]{40}$/;
+    if (!evmRegex.test(machineOwner)) {
+      badRequest(res, 'A valid machineOwnerEVM address is required to start mining (42-char hex starting with 0x)');
+      return;
+    }
 
     if (this.nodeManager.minerManager) {
-      if (machineOwner) {
-        this.nodeManager.minerManager.machineOwnerEVM = machineOwner;
-        this.logger.info(`[miner] Machine owner EVM: ${machineOwner}`);
-      }
+      this.nodeManager.minerManager.machineOwnerEVM = machineOwner;
+      this.logger.info(`[miner] Machine owner EVM: ${machineOwner}`);
       if (appDev) {
         this.nodeManager.minerManager.appDeveloperEVM = appDev;
         this.logger.info(`[miner] App developer EVM: ${appDev}`);

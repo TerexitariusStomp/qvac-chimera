@@ -160,7 +160,7 @@ function App() {
               This may take a few seconds on first launch.
             </p>
             <p style={{ fontSize: 13, color: "#4a4540", maxWidth: 400, textAlign: "center" }}>
-              Docker container • Inference + miners auto-start
+              Docker container • Inference running • Miners off until wallet set
             </p>
             <button
               onClick={() => open("https://github.com/TerexitariusStomp/qvac-chimera")}

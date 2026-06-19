@@ -16,6 +16,10 @@ export function Dashboard() {
   const [loading, setLoading] = useState({ start: false, stop: false });
   const [backendUrl] = useState("http://localhost:3002");
 
+  // Wallet / mining consent
+  const [evmAddress, setEvmAddress] = useState("");
+  const [walletError, setWalletError] = useState("");
+
   // Settings state
   const [autoStart, setAutoStart] = useState(false);
   const [desktopIcon, setDesktopIcon] = useState(false);
@@ -71,12 +75,31 @@ export function Dashboard() {
     setSettingsLoading(l => ({ ...l, desk: false }));
   };
 
+  const isValidEvm = (addr: string) => /^0x[a-fA-F0-9]{40}$/.test(addr.trim());
+
   const startMining = async () => {
+    setWalletError("");
+    const addr = evmAddress.trim();
+    if (!isValidEvm(addr)) {
+      setWalletError("Enter a valid 42-character EVM address (0x...).");
+      return;
+    }
     setLoading(l => ({ ...l, start: true }));
     try {
-      await fetch(`${backendUrl}/api/start`, { method: "POST" });
-      await fetchStatus();
-    } catch {}
+      const res = await fetch(`${backendUrl}/api/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ evmAddress: addr }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        setWalletError(text || "Failed to start mining.");
+      } else {
+        await fetchStatus();
+      }
+    } catch {
+      setWalletError("Network error — is the backend running?");
+    }
     setLoading(l => ({ ...l, start: false }));
   };
 
@@ -213,6 +236,33 @@ export function Dashboard() {
             ))
           )}
         </div>
+
+        {!miningRunning && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+            <input
+              type="text"
+              placeholder="Your EVM wallet address (0x...)"
+              value={evmAddress}
+              onChange={e => { setEvmAddress(e.target.value); setWalletError(""); }}
+              disabled={loading.start}
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: `1px solid ${walletError ? "#b91c1c" : "rgba(255,255,255,0.1)"}`,
+                background: "#0a0a12",
+                color: "#e8e2d8",
+                fontSize: 13,
+                fontFamily: "ui-monospace, SFMono-Regular, 'Cascadia Code', 'Fira Code', monospace",
+                outline: "none",
+              }}
+            />
+            {walletError && (
+              <div style={{ fontSize: 12, color: "#fca5a5" }}>{walletError}</div>
+            )}
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 10 }}>
           {!miningRunning ? (
             <button
