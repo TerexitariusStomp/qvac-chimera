@@ -543,29 +543,38 @@
 
   function pickAsset(assets, os) {
     if (!assets || !assets.length) return null;
+    const names = assets.map(a => a.name);
     if (os === 'android') {
-      return assets.find(a => /android.*\.apk$/.test(a.name.toLowerCase()))
+      return assets.find(a => /chimera.*android.*\.apk$/i.test(a.name))
+        || assets.find(a => /android.*\.apk$/i.test(a.name))
         || assets.find(a => a.name.toLowerCase().endsWith('.apk'));
     }
     if (os === 'ios') {
-      return assets.find(a => /ios.*\.tar\.gz$/.test(a.name.toLowerCase()))
+      return assets.find(a => /chimera.*ios.*\.tar\.gz$/i.test(a.name))
+        || assets.find(a => /ios.*\.tar\.gz$/i.test(a.name))
         || assets.find(a => a.name.toLowerCase().endsWith('.tar.gz') && a.name.toLowerCase().includes('ios'));
     }
     if (os === 'windows') {
-      return assets.find(a => /windows.*\.msi$/.test(a.name.toLowerCase()))
-        || assets.find(a => /windows.*\.exe$/.test(a.name.toLowerCase()))
+      return assets.find(a => /chimera.*windows.*\.msi$/i.test(a.name))
+        || assets.find(a => /chimera.*windows.*\.exe$/i.test(a.name))
+        || assets.find(a => /windows.*\.msi$/i.test(a.name))
+        || assets.find(a => /windows.*\.exe$/i.test(a.name))
         || assets.find(a => a.name.toLowerCase().endsWith('.msi'))
         || assets.find(a => a.name.toLowerCase().endsWith('.exe'));
     }
     if (os === 'macos') {
-      return assets.find(a => /mac.*\.dmg$/.test(a.name.toLowerCase()))
-        || assets.find(a => /darwin.*\.dmg$/.test(a.name.toLowerCase()))
+      return assets.find(a => /chimera.*mac.*\.dmg$/i.test(a.name))
+        || assets.find(a => /chimera.*darwin.*\.dmg$/i.test(a.name))
+        || assets.find(a => /mac.*\.dmg$/i.test(a.name))
+        || assets.find(a => /darwin.*\.dmg$/i.test(a.name))
         || assets.find(a => a.name.toLowerCase().endsWith('.dmg'))
         || assets.find(a => a.name.toLowerCase().endsWith('.app.tar.gz'));
     }
     if (os === 'linux') {
-      return assets.find(a => /linux.*\.deb$/.test(a.name.toLowerCase()))
-        || assets.find(a => /linux.*\.appimage$/.test(a.name.toLowerCase()))
+      return assets.find(a => /chimera.*linux.*\.deb$/i.test(a.name))
+        || assets.find(a => /chimera.*linux.*\.appimage$/i.test(a.name))
+        || assets.find(a => /linux.*\.deb$/i.test(a.name))
+        || assets.find(a => /linux.*\.appimage$/i.test(a.name))
         || assets.find(a => a.name.toLowerCase().endsWith('.deb'))
         || assets.find(a => a.name.toLowerCase().endsWith('.appimage'))
         || assets.find(a => a.name.toLowerCase().endsWith('.rpm'));
