@@ -358,6 +358,7 @@ export default function WikiPage({ onBack }) {
   const handleGenerate = async () => {
     if (!aiPrompt.trim()) return;
     setAiLoading(true);
+    setSaveStatus('Generating...');
     try {
       const res = await fetch(`${API_BASE}/ai-write`, {
         method: 'POST',
@@ -373,9 +374,14 @@ export default function WikiPage({ onBack }) {
         });
         setAiPrompt('');
         setAiTitle('');
+        setSaveStatus('Generated!');
+        setTimeout(() => setSaveStatus(''), 1500);
+      } else {
+        setSaveStatus('Generation failed');
       }
     } catch (e) {
       console.error(e);
+      setSaveStatus('Generation failed');
     } finally {
       setAiLoading(false);
     }
@@ -1015,23 +1021,23 @@ export default function WikiPage({ onBack }) {
                 </div>
                 <button style={s.aiBtn} onClick={() => {
                   if (!draftOutline.trim()) return;
-                  aiAction(`Create a numbered outline for: ${draftOutline}. Output ONLY the outline.`, 'append');
+                  docAIAction(`Create a numbered outline for: ${draftOutline}. Output ONLY the outline.`, 'append');
                 }} disabled={aiLoading || !draftOutline.trim()}>
                   Generate Outline
                 </button>
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 8, paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <span style={s.aiLabel}>Section Writer</span>
                   {['Write intro','Write conclusion','Add objections','Add examples'].map(label => (
-                    <button key={label} style={s.miniBtn} onClick={() => aiAction(`${label} based on the current document. Output ONLY the new section.`, 'append')} disabled={aiLoading}>
+                    <button key={label} style={s.miniBtn} onClick={() => docAIAction(`${label} based on the current document. Output ONLY the new section.`, 'append')} disabled={aiLoading}>
                       {label}
                     </button>
                   ))}
                 </div>
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 8, paddingTop: 8 }}>
-                  <button style={s.miniBtn} onClick={() => aiAction('Summarize the current document into a TL;DR paragraph. Output ONLY the summary.', 'append')} disabled={aiLoading}>
+                  <button style={s.miniBtn} onClick={() => docAIAction('Summarize the current document into a TL;DR paragraph. Output ONLY the summary.', 'append')} disabled={aiLoading}>
                     TL;DR Summary
                   </button>
-                  <button style={s.miniBtn} onClick={() => aiAction('Convert the current document into a clean set of bullet points. Output ONLY the bullets.', 'replace')} disabled={aiLoading}>
+                  <button style={s.miniBtn} onClick={() => docAIAction('Convert the current document into a clean set of bullet points. Output ONLY the bullets.', 'replace')} disabled={aiLoading}>
                     Notes to Bullets
                   </button>
                 </div>

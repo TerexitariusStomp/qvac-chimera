@@ -161,3 +161,98 @@ describe('Frontend AI Write API Contract', () => {
     assert.ok(aiRoutes.length >= 4, `Expected at least 4 AI routes, got ${aiRoutes.length}`);
   });
 });
+
+// ── AI Write Options Tests (Generate / Edit / Draft / Analyze) ───────────────
+
+describe('AI Write Options', () => {
+  let server;
+  let port;
+  let httpServer;
+
+  before(async () => {
+    const mockInference = {
+      async handleInferenceRequest(req) {
+        return {
+          output: `Result for: ${req.prompt.slice(0, 40)}...`,
+          model: 'mock-llm',
+          success: true
+        };
+      },
+      getStatus() {
+        return { running: true, qvacAvailable: true, model: 'mock' };
+      }
+    };
+
+    const mockDataStore = {
+      async appendAIDoc(doc) { /* no-op */ }
+    };
+
+    const mockNodeManager = {
+      inferenceLayer: mockInference,
+      dataStore: mockDataStore
+    };
+
+    server = new WebServer({}, mockNodeManager);
+    await server.initialize();
+
+    httpServer = http.createServer((req, res) => server.handleRequest(req, res));
+    await new Promise((resolve) => {
+      httpServer.listen(0, '127.0.0.1', () => {
+        port = httpServer.address().port;
+        resolve();
+      });
+    });
+  });
+
+  after(async () => {
+    if (httpServer) {
+      httpServer.closeAllConnections?.();
+      await new Promise((resolve) => httpServer.close(resolve));
+    }
+  });
+
+  it('generate accepts prompt + title', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/ai-write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Write about Python', title: 'Python Guide' })
+    });
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.equal(json.success, true);
+    assert.ok(json.data.body.includes('Result for:'));
+  });
+
+  it('edit accepts rewrite prompt', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/ai-write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Rewrite the following text in a concise style. Output ONLY the rewritten text.\n\nText:\nHello world' })
+    });
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.equal(json.success, true);
+  });
+
+  it('draft accepts document-wide outline prompt', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/ai-write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Create a numbered outline for: Blockchain consensus. Output ONLY the outline.' })
+    });
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.equal(json.success, true);
+  });
+
+  it('analyze accepts analysis prompt', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/ai-write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Analyze the tone of the following text and describe it in one sentence. Output ONLY the tone description.\n\nText:\nHello world' })
+    });
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.equal(json.success, true);
+  });
+});
