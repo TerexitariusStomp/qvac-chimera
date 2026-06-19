@@ -6,9 +6,9 @@ const RPC_URL = 'http://localhost:7778/rpc';
 const CHAIN_NAME = 'casper-test';
 
 const PROVIDER_PEM = `-----BEGIN EC PRIVATE KEY-----
-MHQCAQEEINi3dWcuJ2gZF+jxpCFZfvyJGLzV7KreMuo6i1dJxxtnoAcGBSuBBAAK
-oUQDQgAE7QhfBq07dq3SY0fH3vO8d6rEg2wXg5p2Q2pNGOifCgA0W6DUGxJxB5F+
-4wPNfB6b74Wj/WqGueeiw3pP+uRPdQ==
+MHQCAQEEIBJLNm8sYi/pVIcbF2soCZTxr9wO3EGtlEtkA2X5bOQvoAcGBSuBBAAK
+oUQDQgAE7jl1qDI712D51EeKgfIZ974LmOYjjwkjQ3mHFrpLpL/mbwQ7mz/zmBjf
+Rm6VsWCs2wbZAkjyLfzmUUrmzvWIhQ==
 -----END EC PRIVATE KEY-----`;
 
 const CONSUMER_PEM = `-----BEGIN EC PRIVATE KEY-----
