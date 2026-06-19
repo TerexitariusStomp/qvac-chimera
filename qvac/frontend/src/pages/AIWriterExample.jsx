@@ -4,7 +4,11 @@ import {
   FileText, ChevronRight, Lock, Network, Download, Book
 } from 'lucide-react';
 
-const API_BASE = (window.location.protocol === 'http:' || window.location.protocol === 'https:') ? '/api' : 'http://localhost:3002/api';
+const API_BASE = (typeof window !== 'undefined' && (window.Capacitor || window.__TAURI__))
+  ? 'http://localhost:3002/api'
+  : (window.location.protocol === 'http:' || window.location.protocol === 'https:')
+    ? '/api'
+    : 'http://localhost:3002/api';
 
 export default function AIWriterExample({ onNavigateBack, onNavigateToDashboard }) {
   const [activeScreen, setActiveScreen] = useState('write');

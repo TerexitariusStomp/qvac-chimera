@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 
-const API_BASE = (window.location.protocol === 'http:' || window.location.protocol === 'https:') ? '/api' : 'http://localhost:3002/api'; // v2025-06-17-refresh
+const API_BASE = (typeof window !== 'undefined' && (window.Capacitor || window.__TAURI__))
+  ? 'http://localhost:3002/api'
+  : (window.location.protocol === 'http:' || window.location.protocol === 'https:')
+    ? '/api'
+    : 'http://localhost:3002/api';
 
 /* ─── Simple markdown renderer (no external deps) ─── */
 function mdToHtml(text) {
