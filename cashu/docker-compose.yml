@@ -46,6 +46,7 @@ services:
       - "3338:3338"
     volumes:
       - ./orchard.toml:/app/orchard.toml:ro
+      - ./greenlight:/app/greenlight:ro
       - mint-data:/app/data
     environment:
       RUST_LOG: info

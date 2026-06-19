@@ -33,6 +33,7 @@ let PENDING_DICT = '';
 // In-memory job assignment tracking
 const activeAssignments = new Map(); // jobId -> { nodeId, startTime }
 const completedJobs = new Set();
+const failedJobs = new Set(); // jobs where provider_ack or inference failed — don't retry
 
 async function getStateRoot() {
   const res = await fetch(RPC_URL, {
@@ -217,8 +218,12 @@ async function pollAndRoute() {
     console.log(`[router] ${pendingList.length} job(s) in queue`);
 
     for (const jobId of pendingList) {
-      // Skip already completed or in-progress
+      // Skip already completed, in-progress, or previously failed
       if (completedJobs.has(jobId)) continue;
+      if (failedJobs.has(jobId)) {
+        console.log(`[router] Job ${jobId} previously failed, skipping`);
+        continue;
+      }
       if (activeAssignments.has(jobId)) {
         console.log(`[router] Job ${jobId} already assigned to node`);
         continue;
@@ -237,7 +242,8 @@ async function pollAndRoute() {
       }
 
       console.log(`[router] Processing job ${jobId}...`);
-      await processJob(jobId);
+      const ok = await processJob(jobId);
+      if (!ok) failedJobs.add(jobId);
     }
   } catch (e) {
     console.error('[router] Error:', e.message);
