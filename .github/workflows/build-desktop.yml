@@ -236,14 +236,16 @@ jobs:
         run: |
           cd qvac/frontend
           npx cap sync ios
-      - name: Build iOS archive
+      - name: Build iOS app
         run: |
           cd apps/mobile/ios/App
-          xcodebuild -project App.xcodeproj -target App -destination 'platform=iOS Simulator,name=iPhone 15' -archivePath ../../Chimera-iOS.xcarchive archive
-      - name: Compress iOS archive
+          xcodebuild -project App.xcodeproj -target App -destination 'platform=iOS Simulator,name=iPhone 15' -configuration Release build
+          mkdir -p ../../Chimera-iOS
+          cp -r build/Release-iphonesimulator/App.app ../../Chimera-iOS/App.app
+      - name: Compress iOS app
         run: |
           cd apps/mobile/ios
-          tar -czf Chimera-iOS.tar.gz -C ../../ Chimera-iOS.xcarchive
+          tar -czf Chimera-iOS.tar.gz -C ../../ Chimera-iOS
       - name: Upload iOS to release
         uses: softprops/action-gh-release@v2
         with:

@@ -465,10 +465,25 @@ Copy the topic hex and invite others to join.
     const store = this.nodeManager?.dataStore;
     const p2p = this.nodeManager?.p2pNetwork;
     const llm = this.nodeManager?.localLLM;
+
+    // Check upstream integrations
+    let openvikingStatus = { available: false };
+    let otterwikiStatus = { available: false };
+    try {
+      const ov = await this.openviking('create_session');
+      openvikingStatus = { available: ov.success, session: ov.result?.id || 'chimera-default' };
+    } catch (e) { /* ignore */ }
+    try {
+      const ow = await this.otterwiki('list');
+      otterwikiStatus = { available: ow.success, pages: ow.pages?.length || 0 };
+    } catch (e) { /* ignore */ }
+
     ok(res, {
       qvac: llm ? { available: true, ...llm.getStatus() } : { available: false },
       hypercore: store ? { available: true, ...store.getStatus() } : { available: false },
       pear: p2p ? { available: true, running: p2p.isRunning, peers: p2p.peers?.size || 0 } : { available: false },
+      openviking: openvikingStatus,
+      otterwiki: otterwikiStatus,
       wikiDir: path.join(process.cwd(), 'llmwiki-data')
     });
   }

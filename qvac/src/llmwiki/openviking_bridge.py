@@ -1,93 +1,77 @@
 #!/usr/bin/env python3
-"""OpenViking Bridge
+"""OpenViking Bridge — Plain HTTP Edition
 
-Integrates upstream/volcengine/OpenViking as the memory backend.
-Uses the pure-Python HTTP client to talk to an OpenViking server.
+Talks to an OpenViking-compatible server over plain HTTP.
+Does NOT import anything from the openviking package, so no compiled
+Rust extension (pyagfs) is needed on the client side.
 
-Requires an OpenViking server to be running (e.g. via Docker or cargo).
-Default server URL: http://localhost:1933
+Works with:
+  - The real OpenViking server (ghcr.io/volcengine/openviking:latest)
+  - The OpenViking Shim Server (openviking_shim_server.py)
 
 Upstream: https://github.com/volcengine/OpenViking
 """
 
 import json
 import os
-import sys
-import types
-from pathlib import Path
-
-# Add upstream openviking to path so we can import it directly
-_UPSTREAM = Path(__file__).resolve().parents[3] / "upstream" / "openviking"
-sys.path.insert(0, str(_UPSTREAM))
-
-# OpenViking's __init__.py eagerly imports a compiled Rust extension (pyagfs).
-# We create a stub so the rest of the pure-Python imports work.
-_pygafs_stub = types.ModuleType("openviking.pyagfs")
-_pygafs_stub.get_binding_client = lambda *a, **k: None
-sys.modules["openviking.pyagfs"] = _pygafs_stub
-
-# Now import the pure-Python HTTP client
-from openviking_cli.client.sync_http import SyncHTTPClient
+import urllib.request
+import urllib.error
 
 DEFAULT_URL = os.environ.get("OPENVIKING_URL", "http://localhost:1933")
-DEFAULT_API_KEY = os.environ.get("OPENVIKING_API_KEY", "")
-
-_client = None
 
 
-def _get_client() -> SyncHTTPClient:
-    global _client
-    if _client is None:
-        _client = SyncHTTPClient(url=DEFAULT_URL, api_key=DEFAULT_API_KEY)
-        _client.initialize()
-    return _client
+def _request(method: str, path: str, payload: dict | None = None) -> dict:
+    url = f"{DEFAULT_URL.rstrip('/')}{path}"
+    data = json.dumps(payload).encode("utf-8") if payload else None
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        try:
+            body = json.loads(e.read().decode("utf-8"))
+            return {"success": False, "error": body.get("error", str(e)), "status": e.code}
+        except Exception:
+            return {"success": False, "error": str(e), "status": e.code}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 def store_memory(content: str, session_id: str = "chimera-default", role: str = "assistant") -> dict:
-    """Store a memory entry in OpenViking."""
-    try:
-        client = _get_client()
-        result = client.add_message(session_id=session_id, role=role, content=content)
-        return {"success": True, "result": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    """Store a memory entry as a message in a session."""
+    # Ensure session exists first
+    create_session(session_id)
+    resp = _request("POST", f"/api/v1/sessions/{session_id}/messages", {"role": role, "content": content})
+    if "error" in resp and not resp.get("result"):
+        return {"success": False, "error": resp.get("error", "Failed to store memory")}
+    return {"success": True, "result": resp.get("result", resp)}
 
 
 def search_memory(query: str, session_id: str = "chimera-default") -> dict:
-    """Search memory in OpenViking."""
-    try:
-        client = _get_client()
-        # Use the session context to retrieve relevant memories
-        context = client.get_session_context(session_id, token_budget=128_000)
-        return {"success": True, "context": context}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    """Retrieve session context (all messages). No vector search — just returns recent context."""
+    resp = _request("GET", f"/api/v1/sessions/{session_id}/context?token_budget=128000")
+    if "error" in resp and not resp.get("result"):
+        return {"success": False, "error": resp.get("error", "Failed to search memory")}
+    return {"success": True, "context": resp.get("result", {})}
 
 
 def create_session(session_id: str = "chimera-default") -> dict:
-    """Create a new OpenViking session for memory storage."""
-    try:
-        client = _get_client()
-        result = client.create_session(session_id=session_id)
-        return {"success": True, "result": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    """Create a session if it doesn't exist."""
+    resp = _request("POST", "/api/v1/sessions", {"session_id": session_id})
+    # 409 / already exists is fine
+    return {"success": True, "result": resp.get("result", resp)}
 
 
 def get_context_for_prompt(query: str, session_id: str = "chimera-default") -> dict:
-    """Get assembled context from OpenViking to prepend to an AI prompt."""
-    try:
-        client = _get_client()
-        result = client.get_session_context(session_id, token_budget=128_000)
-        # Extract messages from context to feed into QVAC inference
-        messages = result.get("messages", [])
-        context_text = "\n\n".join(
-            f"{m.get('role', 'system')}: {m.get('content', '')}"
-            for m in messages
-        )
-        return {"success": True, "context": context_text, "raw": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    """Get assembled context text to prepend to an AI prompt."""
+    resp = _request("GET", f"/api/v1/sessions/{session_id}/context?token_budget=128000")
+    result = resp.get("result", {})
+    messages = result.get("messages", [])
+    context_text = "\n\n".join(
+        f"{m.get('role', 'system')}: {m.get('content', '')}" for m in messages
+    )
+    return {"success": True, "context": context_text, "raw": result}
 
 
 # CLI entrypoint for Node.js server to call via subprocess
