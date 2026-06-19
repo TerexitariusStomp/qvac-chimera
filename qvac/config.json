@@ -2,7 +2,8 @@
   "node": {
     "id": "02b8357bdd44fbb6bd12f2b07cc993ee",
     "name": "Chimera Mining Node",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "publicUrl": ""
   },
   "inference": {
     "enabled": true,

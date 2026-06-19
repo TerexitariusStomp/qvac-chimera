@@ -283,7 +283,15 @@ Copy the topic hex and invite others to join.
   
   async handleStatus(req, res) {
     if (!this.nodeManager) { serviceUnavailable(res, 'Node manager not available'); return; }
-    ok(res, this.nodeManager.getStatus());
+    const status = this.nodeManager.getStatus();
+    // If this node is a commander, include the fleet roster
+    if (this.orchestrator?.role === 'commander' && this.orchestrator.getWorkers) {
+      status.fleet = {
+        workers: this.orchestrator.getWorkers(),
+        stats: this.orchestrator.getFleetStats(),
+      };
+    }
+    ok(res, status);
   }
   
   async handleAIWrite(req, res) {
@@ -852,17 +860,23 @@ Copy the topic hex and invite others to join.
     }
 
     // ─── Auto-register this machine on the routing network ───
-    const localUrl = `http://localhost:${this.port}`;
+    // Use configured publicUrl, or X-Forwarded-Host / Host header, or fallback to localhost
+    const host = req.headers['x-forwarded-host'] || req.headers['host'] || `localhost:${this.port}`;
+    const proto = req.headers['x-forwarded-proto'] || 'http';
+    const configPublicUrl = this.nodeManager?.config?.node?.publicUrl || '';
+    const nodeUrl = configPublicUrl || `${proto}://${host}`;
     const providerHash = body.casperProvider || '';
     const evmAddr = machineOwner || appDev || '';
-    this.orchestrator.registerWorker(localUrl, {
+    this.orchestrator.registerWorker(nodeUrl, {
       evmAddress: evmAddr,
       casperProvider: providerHash,
       capacity: body.capacity || 1,
+      inferenceUrl: `${nodeUrl}/v1/chat/completions`,
+      inferenceReady: true,
     });
-    this.logger.info(`[router] Auto-registered node ${localUrl} (EVM: ${evmAddr}, Provider: ${providerHash})`);
+    this.logger.info(`[router] Auto-registered node ${nodeUrl} (EVM: ${evmAddr}, Provider: ${providerHash})`);
 
-    ok(res, { message: 'Mining started', running: true, registered: { url: localUrl, evmAddress: evmAddr, casperProvider: providerHash } });
+    ok(res, { message: 'Mining started', running: true, registered: { url: nodeUrl, evmAddress: evmAddr, casperProvider: providerHash } });
   }
 
   async handleStop(req, res) {
