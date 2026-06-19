@@ -182,12 +182,21 @@ jobs:
       - name: Build debug APK
         run: |
           cd apps/mobile/android
+          chmod +x ./gradlew
           ./gradlew assembleDebug
+      - name: Verify APK exists
+        run: |
+          ls -la apps/mobile/android/app/build/outputs/apk/debug/
+      - name: Rename APK for release
+        run: |
+          mkdir -p mobile-build
+          cp apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk mobile-build/Chimera-Android.apk
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: chimera-android
-          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          path: mobile-build/Chimera-Android.apk
+          if-no-files-found: error
   build-ios:
     needs: create-release
     runs-on: macos-latest
@@ -224,11 +233,15 @@ jobs:
         run: |
           cd apps/mobile/ios
           tar -czf Chimera-iOS.tar.gz -C .. Chimera-iOS
+      - name: Verify iOS archive exists
+        run: |
+          ls -la apps/mobile/ios/Chimera-iOS.tar.gz
       - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: chimera-ios
           path: apps/mobile/ios/Chimera-iOS.tar.gz
+          if-no-files-found: error
   upload-mobile-assets:
     needs: [create-release, build-android, build-ios]
     runs-on: ubuntu-22.04
@@ -237,14 +250,20 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: chimera-android
-          path: mobile-assets
+          path: mobile-assets/android
       - name: Download iOS artifact
         uses: actions/download-artifact@v4
         with:
           name: chimera-ios
-          path: mobile-assets
+          path: mobile-assets/ios
+      - name: List downloaded assets
+        run: |
+          echo "Android:"
+          ls -la mobile-assets/android/ || true
+          echo "iOS:"
+          ls -la mobile-assets/ios/ || true
       - name: Upload mobile assets to release
         run: |
-          gh release upload "${{ needs.create-release.outputs.tag_name }}" mobile-assets/* --clobber 
+          gh release upload "${{ needs.create-release.outputs.tag_name }}" mobile-assets/android/* mobile-assets/ios/* --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
