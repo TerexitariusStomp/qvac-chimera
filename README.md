@@ -7,18 +7,23 @@ A standalone QVAC inference node running `@qvac/sdk` inside a hardened Docker co
 ```
 ┌─────────────────────────────────────────────────────┐
 │  Desktop: Tauri Shell + WebView                     │
-│  - Bundled frontend (Wiki-first, auto-save)       │
-│  - Native Start/Stop Supervisor controls            │
-│  - IPC → Go sidecar → Docker container             │
+│  - Bundled frontend (Wiki-first, auto-save)         │
+│  - Native Start/Stop controls                       │
+│  - IPC → Rust backend → Docker (or direct Node.js)│
 └────────────────────┬────────────────────────────────┘
                      │
 ┌────────────────────▼────────────────────────────────┐
-│  Docker Container (Hardened)                        │
+│  Hardened Docker Container (preferred)              │
 │  - Non-root user (chimera)                          │
-│  - @qvac/sdk (QVAK + Metal/Vulkan)                  │
-│  - Node.js backend: miners, P2P, wiki API             │
-│  - LLM Wiki with auto-save (2s debounce)             │
-│  - Hypercore + Pear P2P swarm sync                 │
+│  - Multi-stage build, health checks               │
+│  - Node.js backend: miners, P2P, wiki API          │
+│  - LLM Wiki with auto-save (2s debounce)           │
+└─────────────────────────────────────────────────────┘
+         or (fallback when Docker unavailable)
+┌─────────────────────────────────────────────────────┐
+│  Direct Node.js Process                             │
+│  - Same codebase, no container isolation            │
+│  - start-auto.sh handles deps + build              │
 └─────────────────────────────────────────────────────┘
 ```
 

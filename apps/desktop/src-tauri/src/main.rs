@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 struct SidecarHandle(Mutex<Option<std::process::Child>>);
 struct QvacDir(PathBuf);
+struct DataDir(PathBuf);
 
 /// Resolve the path to the QVAC backend directory.
 /// Tries (in order):
@@ -39,14 +40,80 @@ fn qvac_dir(app: &tauri::App) -> PathBuf {
         .join("qvac")
 }
 
-fn spawn_qvac(state: State<SidecarHandle>, qvac_dir: &PathBuf) -> Result<String, String> {
+fn docker_available() -> bool {
+    Command::new("docker")
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+fn docker_image_built(tag: &str) -> bool {
+    Command::new("docker")
+        .args(["images", "-q", tag])
+        .output()
+        .map(|o| !o.stdout.is_empty())
+        .unwrap_or(false)
+}
+
+fn spawn_qvac_docker(qvac_dir: &PathBuf, data_dir: &PathBuf) -> Result<std::process::Child, String> {
+    let tag = "chimera-desktop:latest";
+
+    if !docker_image_built(tag) {
+        let dockerfile = qvac_dir.join("Dockerfile");
+        let status = Command::new("docker")
+            .args(["build", "-t", tag, "-f", dockerfile.to_str().unwrap(), qvac_dir.to_str().unwrap()])
+            .status()
+            .map_err(|e| format!("docker build failed: {}", e))?;
+        if !status.success() {
+            return Err("docker build exited with non-zero status".to_string());
+        }
+    }
+
+    let _ = std::fs::create_dir_all(data_dir.join("llmwiki-data"));
+    let _ = std::fs::create_dir_all(data_dir.join("data"));
+
+    let child = Command::new("docker")
+        .args([
+            "run", "--rm", "--name", "chimera-desktop",
+            "-p", "3002:3002",
+            "-v", &format!("{}:/app/llmwiki-data", data_dir.join("llmwiki-data").to_string_lossy()),
+            "-v", &format!("{}:/app/data", data_dir.join("data").to_string_lossy()),
+            "-e", "PORT=3002",
+            tag,
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("docker run failed: {}", e))?;
+
+    Ok(child)
+}
+
+fn spawn_qvac(state: State<SidecarHandle>, qvac_dir: &PathBuf, data_dir: &PathBuf) -> Result<String, String> {
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
     if guard.is_some() {
         return Ok("qvac already running".to_string());
     }
 
-    let script = qvac_dir.join("src").join("index.js");
+    // Try hardened Docker container first
+    if docker_available() {
+        match spawn_qvac_docker(qvac_dir, data_dir) {
+            Ok(child) => {
+                *guard = Some(child);
+                return Ok("qvac started (docker)".to_string());
+            }
+            Err(e) => {
+                eprintln!("[chimera] Docker mode failed ({}), falling back to direct Node.js", e);
+            }
+        }
+    }
 
+    // Fallback: direct Node.js process
+    let script = qvac_dir.join("src").join("index.js");
     let child = if cfg!(windows) {
         Command::new("node")
             .arg(&script)
@@ -81,12 +148,12 @@ fn spawn_qvac(state: State<SidecarHandle>, qvac_dir: &PathBuf) -> Result<String,
     .map_err(|e| format!("failed to spawn qvac: {}", e))?;
 
     *guard = Some(child);
-    Ok("qvac started".to_string())
+    Ok("qvac started (direct)".to_string())
 }
 
 #[tauri::command]
-fn start_supervisor(state: State<SidecarHandle>, qvac_dir: State<QvacDir>) -> Result<String, String> {
-    spawn_qvac(state, &qvac_dir.0)
+fn start_supervisor(state: State<SidecarHandle>, qvac_dir: State<QvacDir>, data_dir: State<DataDir>) -> Result<String, String> {
+    spawn_qvac(state, &qvac_dir.0, &data_dir.0)
 }
 
 #[tauri::command]
@@ -299,6 +366,16 @@ fn has_desktop_shortcut() -> Result<bool, String> {
     }
 }
 
+fn data_dir() -> PathBuf {
+    if cfg!(windows) {
+        let appdata = std::env::var("APPDATA").unwrap_or_else(|_| std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string()));
+        PathBuf::from(appdata).join("chimera")
+    } else {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        PathBuf::from(home).join(".local/share/chimera")
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -317,8 +394,10 @@ fn main() {
         .setup(|app| {
             let qvac = qvac_dir(app);
             app.manage(QvacDir(qvac.clone()));
+            let dd = data_dir();
+            app.manage(DataDir(dd.clone()));
             let handle: State<SidecarHandle> = app.state();
-            let _ = spawn_qvac(handle, &qvac);
+            let _ = spawn_qvac(handle, &qvac, &dd);
             Ok(())
         })
         .run(tauri::generate_context!())
