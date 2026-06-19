@@ -1,4 +1,7 @@
 import { Logger } from '../core/Logger.js';
+import { existsSync, mkdirSync, readFileSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
 
 export class FortytwoMiner {
   constructor(config, inferenceLayer = null) {
@@ -10,26 +13,43 @@ export class FortytwoMiner {
     this.monitoringMode = false;
     this.walletAddress = config.walletAddress || null;
     this.network = config.network || 'evm';
+    this.nodeName = config.nodeName || 'Chimera-Fortytwo-Node';
+    this.apiBase = config.apiBase || 'https://node.fortytwo.network/api';
+    this.pollInterval = config.pollInterval || 120_000;
+    this.inferenceUrl = config.inferenceUrl || 'http://localchimera.com:3002/v1';
+    this.fortytwoHome = config.fortytwoHome || join(homedir(), '.fortytwo');
+    this.identityFile = join(this.fortytwoHome, 'identity.json');
+    this._nodeId = null;
+    this._secretKey = null;
+    this._pollTimer = null;
+    this._cycleCount = 0;
   }
   
   async initialize() {
     this.logger.info('Initializing Fortytwo-Network miner...');
     
-    // Validate wallet address if provided
-    if (this.walletAddress) {
-      if (!this.validateWalletAddress(this.walletAddress)) {
-        this.logger.error('Invalid EVM wallet address');
-        throw new Error('Invalid wallet address format');
-      }
-      this.logger.info(`Fortytwo wallet configured: ${this.maskAddress(this.walletAddress)}`);
+    if (!existsSync(this.fortytwoHome)) mkdirSync(this.fortytwoHome, { recursive: true });
+    if (existsSync(this.identityFile)) {
+      this.logger.info(`Found identity: ${this.identityFile}`);
+      this._loadIdentity();
     } else {
-      this.logger.warn('No wallet address configured - rewards cannot be received');
+      this.logger.warn('No Fortytwo identity — registration required');
+      this.logger.info('Get credentials: https://app.fortytwo.network/');
     }
-    
-    // Fortytwo-Network integration would go here
-    // This would involve setting up the fortytwo console app
-    
-    this.logger.info('Fortytwo-Network miner initialized');
+    if (this.walletAddress) {
+      if (!this.validateWalletAddress(this.walletAddress)) this.logger.error('Invalid EVM wallet');
+      else this.logger.info(`Wallet: ${this.maskAddress(this.walletAddress)}`);
+    }
+    this.logger.info('Fortytwo miner initialized');
+  }
+
+  _loadIdentity() {
+    try {
+      const data = JSON.parse(readFileSync(this.identityFile, 'utf-8'));
+      this._nodeId = data.node_id || data.nodeId || null;
+      this._secretKey = data.secret_key || data.secretKey || null;
+      if (this._nodeId) this.logger.info(`Loaded node ID: ${this._nodeId.slice(0, 8)}...`);
+    } catch (e) { this.logger.error(`Identity load failed: ${e.message}`); }
   }
   
   validateWalletAddress(address) {
@@ -43,47 +63,32 @@ export class FortytwoMiner {
   }
   
   async start() {
-    if (this.isRunning) {
-      this.logger.warn('Fortytwo-Network miner already running');
+    if (this.isRunning) { this.logger.warn('Already running'); return; }
+    if (!this._nodeId || !this._secretKey) {
+      this.logger.warn('No Fortytwo credentials — cannot start');
+      this.logger.info('Register at https://app.fortytwo.network/ then save to ~/.fortytwo/identity.json');
       return;
     }
-    
-    this.logger.info('Starting Fortytwo-Network miner...');
-    
-    // Start fortytwo node
-    // In real implementation, this would run the console app
-    
+    this.logger.info(`Starting Fortytwo node: ${this.nodeName}`);
+    this._pollTimer = setInterval(() => this._poll(), this.pollInterval);
+    this._poll();
     this.isRunning = true;
-    this.logger.info('Fortytwo-Network miner started');
+    this.logger.info('Fortytwo node started');
   }
   
   async startMonitoring() {
-    if (this.isRunning && this.monitoringMode) {
-      this.logger.warn('Fortytwo-Network miner already in monitoring mode');
-      return;
-    }
-    
-    this.logger.info('Starting Fortytwo-Network miner in monitoring mode...');
-    
-    // Start fortytwo node in monitoring mode
-    
-    this.isRunning = true;
+    if (this.isRunning && this.monitoringMode) { this.logger.warn('Already monitoring'); return; }
     this.monitoringMode = true;
-    this.logger.info('Fortytwo-Network miner monitoring mode started');
+    await this.start();
   }
   
   async stop() {
-    if (!this.isRunning) {
-      return;
-    }
-    
-    this.logger.info('Stopping Fortytwo-Network miner...');
-    
-    // Stop fortytwo node
-    
+    if (!this.isRunning) return;
+    this.logger.info('Stopping Fortytwo node...');
+    if (this._pollTimer) clearInterval(this._pollTimer);
     this.isRunning = false;
     this.monitoringMode = false;
-    this.logger.info('Fortytwo-Network miner stopped');
+    this.logger.info('Fortytwo node stopped');
   }
   
   async onInferenceTask(task) {
@@ -100,13 +105,67 @@ export class FortytwoMiner {
     }
   }
   
+  async _poll() {
+    try {
+      this.logger.debug('Polling Fortytwo for tasks...');
+      const res = await fetch(`${this.apiBase}/tasks/pending`, {
+        headers: {
+          'X-Node-ID': this._nodeId,
+          'X-Node-Secret': this._secretKey,
+        },
+      });
+      if (!res.ok) { this.logger.warn(`Poll failed: ${res.status}`); return; }
+      const tasks = await res.json();
+      if (tasks.length > 0) {
+        this.logger.info(`Received ${tasks.length} task(s) from Fortytwo`);
+        for (const task of tasks) await this._processTask(task);
+      }
+      this._cycleCount++;
+    } catch (e) { this.logger.warn(`Poll error: ${e.message}`); }
+  }
+
+  async _processTask(task) {
+    this.logger.info(`Processing task: ${task.id}`);
+    try {
+      const result = await this.onInferenceTask(task);
+      await this._submitResult(task.id, result);
+      this._lastTaskTime = Date.now();
+    } catch (e) { this.logger.error(`Task ${task.id} failed: ${e.message}`); }
+  }
+
+  async _submitResult(taskId, result) {
+    try {
+      await fetch(`${this.apiBase}/tasks/${taskId}/result`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Node-ID': this._nodeId,
+          'X-Node-Secret': this._secretKey,
+        },
+        body: JSON.stringify(result),
+      });
+      this.logger.info(`Submitted result for ${taskId}`);
+    } catch (e) { this.logger.error(`Submit failed: ${e.message}`); }
+  }
+
+  async _checkNodeStatus() {
+    const res = await fetch(`${this.apiBase}/nodes/${this._nodeId}`, {
+      headers: { 'X-Node-Secret': this._secretKey },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+
   getStatus() {
     return {
       running: this.isRunning,
       monitoringMode: this.monitoringMode,
       name: this.name,
+      network: this.network,
       walletConfigured: !!this.walletAddress,
-      network: this.network
+      nodeId: this._nodeId ? `${this._nodeId.slice(0, 8)}...` : null,
+      cycles: this._cycleCount,
+      lastTask: this._lastTaskTime,
     };
   }
 }
