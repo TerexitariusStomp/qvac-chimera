@@ -294,16 +294,14 @@ jobs:
         run: |
           cd apps/mobile-expo
           npx expo prebuild --platform android --clean
-      - name: Set Gradle Java home and Kotlin version
+      - name: Set Gradle Java home and downgrade Compose compiler
         run: |
           echo "org.gradle.java.home=$JAVA_HOME" >> apps/mobile-expo/android/gradle.properties
-          echo "android.kotlinVersion=1.9.25" >> apps/mobile-expo/android/gradle.properties
-          echo "=== Before patch ==="
-          cat apps/mobile-expo/android/build.gradle
-          echo "=== Patching all gradle files ==="
-          find apps/mobile-expo/android -name "*.gradle" -exec sed -i 's/1\.9\.24/1.9.25/g' {} +
-          find apps/mobile-expo/node_modules/expo-modules-core -name "*.gradle" -exec sed -i 's/1\.9\.24/1.9.25/g' {} + 2>/dev/null || true
-          echo "=== After patch ==="
+          echo "=== Patching Compose compiler 1.5.15 -> 1.5.14 ==="
+          find apps/mobile-expo/node_modules/expo-modules-core -type f \( -name "*.gradle" -o -name "*.gradle.kts" -o -name "*.toml" -o -name "*.properties" \) -exec sed -i 's/1\.5\.15/1.5.14/g' {} + 2>/dev/null || true
+          find apps/mobile-expo/android -type f \( -name "*.gradle" -o -name "*.gradle.kts" -o -name "*.toml" \) -exec sed -i 's/1\.5\.15/1.5.14/g' {} + 2>/dev/null || true
+          echo "=== Verifying patch ==="
+          grep -rn "1.5.14\|1.5.15" apps/mobile-expo/node_modules/expo-modules-core/android/ 2>/dev/null || true
           cat apps/mobile-expo/android/build.gradle
       - name: Build Expo APK
         run: |
