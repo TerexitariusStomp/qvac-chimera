@@ -13,6 +13,9 @@ config.resolver.resolveRequest = (context, moduleName, platform, realModuleName)
   if (moduleName === '@qvac/rag/errors.js') {
     return { filePath: path.resolve(__dirname, 'stubs/qvac-rag-errors.js'), type: 'sourceFile' };
   }
+  if (moduleName === 'tinyld/heavy') {
+    return { filePath: path.resolve(__dirname, 'stubs/tinyld-heavy.js'), type: 'sourceFile' };
+  }
   if (defaultResolveRequest) {
     return defaultResolveRequest(context, moduleName, platform, realModuleName);
   }
