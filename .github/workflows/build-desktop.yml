@@ -109,9 +109,10 @@ jobs:
           cd apps/desktop
           npm run build
       - name: Copy QVAC to Tauri resources
+        shell: pwsh
         run: |
-          mkdir -p apps/desktop/src-tauri/resources
-          rsync -av --exclude='node_modules' --exclude='.git' --exclude='target' qvac/ apps/desktop/src-tauri/resources/qvac/
+          New-Item -ItemType Directory -Force -Path apps/desktop/src-tauri/resources/qvac
+          Get-ChildItem -Path qvac -Exclude @('node_modules','.git','target') | Copy-Item -Destination apps/desktop/src-tauri/resources/qvac/ -Recurse -Force
       - name: Build Tauri
         uses: tauri-apps/tauri-action@v0
         env:
