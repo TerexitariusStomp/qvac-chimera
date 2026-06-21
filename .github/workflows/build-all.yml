@@ -10,8 +10,6 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - name: Install qvac deps
@@ -27,8 +25,6 @@ jobs:
       CARGO_NET_TIMEOUT: 60
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - uses: dtolnay/rust-toolchain@stable
@@ -63,8 +59,6 @@ jobs:
       CARGO_NET_TIMEOUT: 60
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - uses: dtolnay/rust-toolchain@stable
@@ -119,8 +113,6 @@ jobs:
       CARGO_NET_TIMEOUT: 60
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - uses: dtolnay/rust-toolchain@stable
