@@ -124,7 +124,8 @@
     "enabled": true,
     "machineOwnerAddress": "",
     "appDeveloperAddress": "",
-    "evmCollectionAddress": "",
+    "evmCollectionAddress": "0x7eB4A545F875FC1Da252661d31a3e28e67bf723f",
+    "rpcUrl": "https://arb1.arbitrum.io/rpc",
     "revenueSplit": {
       "machineOwner": 0.7,
       "appDeveloper": 0.3

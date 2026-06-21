@@ -125,6 +125,8 @@
     "machineOwnerAddress": "0xYOUR_MACHINE_OWNER_EVM_ADDRESS",
     "appDeveloperAddress": "0xYOUR_APP_DEVELOPER_EVM_ADDRESS",
     "evmCollectionAddress": "0xYOUR_EVM_COLLECTION_MULTISIG_ADDRESS",
+    "rpcUrl": "https://arb1.arbitrum.io/rpc",
+    "_note_signingKey": "Set PAYOUT_SIGNING_KEY env var — never put private keys in this file",
     "revenueSplit": {
       "machineOwner": 0.7,
       "appDeveloper": 0.3

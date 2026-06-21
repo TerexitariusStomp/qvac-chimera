@@ -30,6 +30,7 @@
     "@qvac/sdk": "^0.13.2",
     "casper-js-sdk": "^5.0.12",
     "dotenv": "^17.4.2",
+    "ethers": "^6.13.0",
     "hypercore": "^10.0.0",
     "hyperswarm": "^4.0.0",
     "pear-runtime": "^1.0.0",

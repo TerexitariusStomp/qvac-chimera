@@ -10,14 +10,18 @@
  *   3. Distribute: app developer fee + machine owner remainder
  */
 
+import { promises as fs } from 'fs';
+import path from 'path';
+import { ethers } from 'ethers';
 import { PayoutStore } from './PayoutStore.js';
 import { Logger } from '../core/Logger.js';
 
 const logger = new Logger('PayoutRouter');
 
 export class PayoutRouter {
-  constructor() {
-    this.store = new PayoutStore();
+  constructor(config = {}) {
+    this.config = config;
+    this.store = new PayoutStore(config.dataDir);
   }
 
   // ─── App Registration ───
@@ -322,23 +326,55 @@ export class PayoutRouter {
     await this.store.saveDistributions();
     logger.info(`[payout] Execution started for ${key}: ${plan.length} recipients`);
 
-    // In production: call EVM multisig contract to execute transfers
-    // For now: log and write to file (same as MonthlyDistributor)
-    const { promises: fs } = await import('fs');
-    const path = await import('path');
-    const dir = path.default.join(process.cwd(), 'data', 'payouts');
+    const dir = this.store.dataDir;
     await fs.mkdir(dir, { recursive: true });
-    const file = path.default.join(dir, `execution-${year}-${String(month).padStart(2, '0')}.json`);
-    await fs.writeFile(file, JSON.stringify({
-      year, month,
-      executedAt: Date.now(),
-      status: 'executing',
-      totalRecipients: plan.length,
-      recipients: plan
-    }, null, 2), 'utf-8');
+    const file = path.join(dir, `execution-${year}-${String(month).padStart(2, '0')}.json`);
+    await fs.writeFile(file, JSON.stringify(
+      { year, month, executedAt: d.executionStartedAt, status: 'executing', totalRecipients: plan.length, recipients: plan },
+      null, 2), 'utf-8');
+    logger.info(`[payout] Audit file: ${file}`);
 
-    logger.info(`[payout] Execution plan saved to ${file}`);
-    return { success: true, distribution: d, plan };
+    const signingKey = process.env.PAYOUT_SIGNING_KEY?.trim();
+    const rpcUrl = this.config.rpcUrl || 'https://arb1.arbitrum.io/rpc';
+
+    if (!signingKey) {
+      d.status = 'failed';
+      d.error = 'PAYOUT_SIGNING_KEY env var not set';
+      await this.store.saveDistributions();
+      logger.error('[payout] PAYOUT_SIGNING_KEY not set — distribution aborted');
+      return { success: false, error: d.error, plan };
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const wallet = new ethers.Wallet(signingKey, provider);
+    logger.info(`[payout] Sending from ${wallet.address} via ${rpcUrl}`);
+
+    const txHashes = [];
+    const failures = [];
+    for (const { address, amount } of plan) {
+      try {
+        const tx = await wallet.sendTransaction({ to: address, value: ethers.parseEther(amount.toString()) });
+        logger.info(`[payout] Sent ${amount} ETH → ${address} (${tx.hash})`);
+        txHashes.push({ address, amount, txHash: tx.hash });
+      } catch (err) {
+        logger.error(`[payout] Transfer to ${address} failed: ${err.message}`);
+        failures.push({ address, amount, error: err.message });
+      }
+    }
+
+    d.status = failures.length === 0 ? 'confirmed' : (txHashes.length > 0 ? 'partial' : 'failed');
+    d.distributedAt = Date.now();
+    d.txHashes = txHashes;
+    if (failures.length) d.failures = failures;
+    await this.store.saveDistributions();
+
+    await fs.writeFile(file, JSON.stringify(
+      { year, month, executedAt: d.executionStartedAt, completedAt: d.distributedAt,
+        status: d.status, totalRecipients: plan.length, recipients: plan, txHashes, failures },
+      null, 2), 'utf-8');
+
+    logger.info(`[payout] Distribution ${key} ${d.status} — ${txHashes.length} sent, ${failures.length} failed`);
+    return { success: failures.length === 0, distribution: d, plan, txHashes, failures };
   }
 
   async confirmDistribution(year, month, txHash) {

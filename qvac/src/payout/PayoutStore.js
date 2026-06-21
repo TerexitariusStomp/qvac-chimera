@@ -6,33 +6,31 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 
-const DATA_DIR = path.join(process.cwd(), 'data', 'payouts');
-
-const FILES = {
-  apps: path.join(DATA_DIR, 'apps.json'),
-  users: path.join(DATA_DIR, 'users.json'),
-  orders: path.join(DATA_DIR, 'orders.json'),
-  payouts: path.join(DATA_DIR, 'payouts.json'),
-  distributions: path.join(DATA_DIR, 'distributions.json'),
-  denials: path.join(DATA_DIR, 'denials.json')
-};
-
 export class PayoutStore {
-  constructor() {
+  constructor(dataDir = path.join(process.cwd(), 'data', 'payouts')) {
+    this.dataDir = dataDir;
+    this._files = {
+      apps:          path.join(dataDir, 'apps.json'),
+      users:         path.join(dataDir, 'users.json'),
+      orders:        path.join(dataDir, 'orders.json'),
+      payouts:       path.join(dataDir, 'payouts.json'),
+      distributions: path.join(dataDir, 'distributions.json'),
+      denials:       path.join(dataDir, 'denials.json'),
+    };
     this._cache = {};
   }
 
   async _ensureDir() {
-    try { await fs.mkdir(DATA_DIR, { recursive: true }); } catch (_) {}
+    await fs.mkdir(this.dataDir, { recursive: true });
   }
 
   async _load(key) {
     if (this._cache[key]) return this._cache[key];
     await this._ensureDir();
     try {
-      const raw = await fs.readFile(FILES[key], 'utf-8');
-      this._cache[key] = JSON.parse(raw);
+      this._cache[key] = JSON.parse(await fs.readFile(this._files[key], 'utf-8'));
     } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
       this._cache[key] = {};
     }
     return this._cache[key];
@@ -40,8 +38,7 @@ export class PayoutStore {
 
   async _save(key) {
     await this._ensureDir();
-    const data = this._cache[key] || {};
-    await fs.writeFile(FILES[key], JSON.stringify(data, null, 2), 'utf-8');
+    await fs.writeFile(this._files[key], JSON.stringify(this._cache[key] || {}, null, 2), 'utf-8');
   }
 
   async getApps() { return this._load('apps'); }

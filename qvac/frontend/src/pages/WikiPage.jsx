@@ -259,13 +259,25 @@ export default function WikiPage({ onBack }) {
   const [evmAddress, setEvmAddress] = useState('');
   const [nodeRunning, setNodeRunning] = useState(false);
   const [minerStatus, setMinerStatus] = useState(null);
+  const [backendError, setBackendError] = useState('');
+  const minerPollRef = useRef(null);
 
   useEffect(() => {
     fetchDocs();
     fetchStatus();
+    fetchMinerStatus();
     const saved = localStorage.getItem('chimeraEvmAddress');
     if (saved) setEvmAddress(saved);
   }, []);
+
+  useEffect(() => {
+    if (nodeRunning) {
+      minerPollRef.current = setInterval(fetchMinerStatus, 5000);
+    } else {
+      clearInterval(minerPollRef.current);
+    }
+    return () => clearInterval(minerPollRef.current);
+  }, [nodeRunning]);
   useEffect(() => { setToc(extractToc(editorText)); }, [editorText]);
   useEffect(() => () => { if (autoIntervalRef) clearInterval(autoIntervalRef); }, []);
 
@@ -307,6 +319,7 @@ export default function WikiPage({ onBack }) {
       if (res.ok) {
         setNodeRunning(true);
         setSaveStatus('Miners started');
+        await fetchMinerStatus();
       } else {
         setSaveStatus(json.error || 'Start failed');
       }
@@ -400,9 +413,13 @@ export default function WikiPage({ onBack }) {
     try {
       const res = await fetch(`${API_BASE}/llmwiki-docs`);
       const json = await res.json();
-      if (json.success) setDocs(json.data || []);
+      if (json.success) {
+        setDocs(json.data || []);
+        setBackendError('');
+      }
     } catch (e) {
       console.error('Failed to fetch docs:', e);
+      setBackendError('Backend not running — start the Chimera node');
     }
   };
 
@@ -1023,7 +1040,7 @@ export default function WikiPage({ onBack }) {
           </div>
           {minerStatus && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {Object.entries(minerStatus).slice(0, 3).map(([name, m]) => (
+              {Object.entries(minerStatus).map(([name, m]) => (
                 <div key={name} style={{ fontSize: 9, color: m.running ? '#86efac' : '#94a3b8' }}>
                   • {name}: {m.running ? 'on' : 'off'}
                 </div>

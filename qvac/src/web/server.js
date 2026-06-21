@@ -28,7 +28,7 @@ export class WebServer {
     this.corsOrigin = process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? null : '*');
     this.indexer = new MarkdownIndexer();
     this.orchestrator = new NodeOrchestrator();
-    this.payoutRouter = new PayoutRouter();
+    this.payoutRouter = new PayoutRouter(config?.multisig || {});
   }
 
   async initialize() {
@@ -852,6 +852,20 @@ Copy the topic hex and invite others to join.
     if (this.nodeManager.minerManager) {
       this.nodeManager.minerManager.machineOwnerEVM = machineOwner;
       this.logger.info(`[miner] Machine owner EVM: ${machineOwner}`);
+
+      // Persist to config.json so the address survives restarts
+      try {
+        const configPath = path.join(__dirname, '..', '..', 'config.json');
+        const raw = await fs.readFile(configPath, 'utf-8');
+        const cfg = JSON.parse(raw);
+        cfg.multisig.machineOwnerAddress = machineOwner;
+        cfg.miners.cortensor.config.walletAddress = machineOwner;
+        cfg.miners.fortytwo.config.walletAddress = machineOwner;
+        await fs.writeFile(configPath, JSON.stringify(cfg, null, 2), 'utf-8');
+        this.logger.info(`[miner] Persisted EVM address to config.json`);
+      } catch (e) {
+        this.logger.warn(`[miner] Could not persist EVM address to config.json: ${e.message}`);
+      }
       if (appDev) {
         this.nodeManager.minerManager.appDeveloperEVM = appDev;
         this.logger.info(`[miner] App developer EVM: ${appDev}`);
