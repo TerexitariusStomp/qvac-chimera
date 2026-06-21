@@ -10,7 +10,20 @@ permissions:
   contents: write
 
 jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install qvac deps
+        run: cd qvac && npm install
+      - name: Run test suite
+        run: cd qvac && node --test test/router.test.js test/orchestrator.test.js test/payout.test.js
+
   create-release:
+    needs: test
     runs-on: ubuntu-22.04
     outputs:
       release_id: ${{ steps.release.outputs.id }}
@@ -47,8 +60,6 @@ jobs:
       CARGO_NET_TIMEOUT: 60
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -95,8 +106,6 @@ jobs:
       CARGO_NET_TIMEOUT: 60
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -161,8 +170,6 @@ jobs:
       CARGO_NET_TIMEOUT: 60
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -204,8 +211,6 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -252,8 +257,6 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -320,8 +323,6 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - name: Download Android artifact
         uses: actions/download-artifact@v4
         with:
