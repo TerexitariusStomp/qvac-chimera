@@ -113,6 +113,7 @@ jobs:
         run: |
           robocopy qvac apps\desktop\src-tauri\qvac /E /XD node_modules .git target /R:0 /W:0
           if %ERRORLEVEL% GEQ 8 exit /b 1
+          exit /b 0
       - name: Build Tauri
         uses: tauri-apps/tauri-action@v0
         env:
