@@ -23,8 +23,8 @@ export class MonthlyDistributor {
 
   start() {
     logger.info('MonthlyDistributor started — checking every hour');
-    this.check(); // immediate check
-    this.timer = setInterval(() => this.check(), this.intervalMs);
+    this.check().catch(e => logger.error(`[monthly] Startup check error: ${e.message}`));
+    this.timer = setInterval(() => this.check().catch(e => logger.error(`[monthly] Check error: ${e.message}`)), this.intervalMs).unref();
   }
 
   stop() {
