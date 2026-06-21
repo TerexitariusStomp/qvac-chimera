@@ -273,7 +273,7 @@ jobs:
           if-no-files-found: error
 
   upload-mobile-assets:
-    needs: [create-release, build-android, build-ios, build-expo-android]
+    needs: [create-release, build-android, build-ios]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -287,21 +287,14 @@ jobs:
         with:
           name: chimera-ios
           path: mobile-assets/ios
-      - name: Download Expo Android artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: chimera-android
-          path: mobile-assets/expo-android
       - name: List downloaded assets
         run: |
           echo "Android:"
           ls -la mobile-assets/android/ || true
           echo "iOS:"
           ls -la mobile-assets/ios/ || true
-          echo "Expo Android:"
-          ls -la mobile-assets/expo-android/ || true
       - name: Upload mobile assets to release
         run: |
-          gh release upload "${{ needs.create-release.outputs.tag_name }}" mobile-assets/android/* mobile-assets/ios/* mobile-assets/expo-android/* --clobber --repo ${{ github.repository }}
+          gh release upload "${{ needs.create-release.outputs.tag_name }}" mobile-assets/android/* mobile-assets/ios/* --clobber --repo ${{ github.repository }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

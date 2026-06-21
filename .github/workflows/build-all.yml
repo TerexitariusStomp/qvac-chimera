@@ -65,3 +65,31 @@ jobs:
         with:
           name: windows-build
           path: apps/desktop/src-tauri/target/release/bundle
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.21" }
+      - name: Build
+        run: |
+          cd apps/desktop/supervisor && go build -o supervisor main.go
+          mkdir -p ../src-tauri/bin && cp supervisor ../src-tauri/bin/supervisor-aarch64-apple-darwin
+          cd ../../../qvac/frontend && npm install && npm run build
+          cd ../../apps/desktop && npm install && npm run build
+      - name: Copy QVAC to Tauri resources
+        run: |
+          mkdir -p apps/desktop/src-tauri/resources
+          rsync -av --exclude='node_modules' --exclude='.git' --exclude='target' qvac/ apps/desktop/src-tauri/resources/qvac/
+      - name: Tauri build
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: ./apps/desktop
+          args: "--target aarch64-apple-darwin"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: apps/desktop/src-tauri/target/release/bundle
