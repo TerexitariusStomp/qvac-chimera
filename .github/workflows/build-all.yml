@@ -54,6 +54,7 @@ jobs:
       - name: Copy QVAC to Tauri resources
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Continue'
           robocopy qvac apps/desktop/src-tauri/qvac /E /XD node_modules .git target /R:0 /W:0
           if ($LASTEXITCODE -ge 8) { exit 1 }
       - name: Tauri build
