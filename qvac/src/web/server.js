@@ -275,7 +275,21 @@ Copy the topic hex and invite others to join.
   
   async handleSignIn(req, res) {
     const body = await parseBody(req);
-    ok(res, { method: body.method || 'email', email: body.email, timestamp: Date.now() });
+    const auth = this.nodeManager?.authService;
+    if (!auth) { serviceUnavailable(res, 'Auth service not available'); return; }
+    try {
+      const result = await auth.signIn(body);
+      ok(res, result);
+    } catch (e) {
+      badRequest(res, e.message);
+    }
+  }
+
+  async handleSignOut(req, res) {
+    const auth = this.nodeManager?.authService;
+    if (!auth) { serviceUnavailable(res, 'Auth service not available'); return; }
+    await auth.signOut();
+    ok(res, { signedOut: true });
   }
   
   async handleDownload(req, res) {
@@ -826,7 +840,15 @@ Copy the topic hex and invite others to join.
     ok(res, { message: 'Worker will halt after current job' });
   }
 
+  _requireAuth(req, res) {
+    const auth = this.nodeManager?.authService;
+    if (!auth) { serviceUnavailable(res, 'Auth service unavailable'); return false; }
+    if (!auth.isAuthenticated()) { badRequest(res, 'Authentication required'); return false; }
+    return true;
+  }
+
   async handleStart(req, res) {
+    if (!this._requireAuth(req, res)) return;
     if (!this.nodeManager) { serviceUnavailable(res, 'Node manager not available'); return; }
     const body = await parseBody(req);
 
@@ -908,6 +930,7 @@ Copy the topic hex and invite others to join.
   }
 
   async handleStop(req, res) {
+    if (!this._requireAuth(req, res)) return;
     if (!this.nodeManager) { serviceUnavailable(res, 'Node manager not available'); return; }
     // Only stop miners — inference node keeps running so the user can
     // browse the wiki and use AI features without earning.
@@ -926,6 +949,7 @@ Copy the topic hex and invite others to join.
   }
 
   async handleMinerTest(req, res) {
+    if (!this._requireAuth(req, res)) return;
     if (!this.nodeManager?.minerManager) { serviceUnavailable(res, 'Miner manager not available'); return; }
     const mm = this.nodeManager.minerManager;
     const results = [];

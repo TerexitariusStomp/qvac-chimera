@@ -7,6 +7,7 @@ export const ROUTES = [
   // Core
   ['POST', '/api/consent',            'handleConsent'],
   ['POST', '/api/signin',             'handleSignIn'],
+  ['POST', '/api/signout',            'handleSignOut'],
   ['GET',  '/api/download',           'handleDownload'],
   ['GET',  '/api/status',             'handleStatus'],
   // AI Writer
