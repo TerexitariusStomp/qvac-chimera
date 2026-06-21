@@ -255,6 +255,12 @@ export default function WikiPage({ onBack }) {
   const [joinTopicInput, setJoinTopicInput] = useState('');
   const [swarmScope, setSwarmScope] = useState('wiki'); // 'wiki' | 'page'
 
+  // Auth
+  const [authToken, setAuthToken] = useState(localStorage.getItem('chimeraAuthToken') || '');
+  const [authEmail, setAuthEmail] = useState(localStorage.getItem('chimeraAuthEmail') || '');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+
   // Miner node
   const [evmAddress, setEvmAddress] = useState('');
   const [nodeRunning, setNodeRunning] = useState(false);
@@ -300,6 +306,47 @@ export default function WikiPage({ onBack }) {
     } catch (e) { console.error(e); }
   };
 
+  const authHeaders = (extra = {}) => ({
+    'Content-Type': 'application/json',
+    ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
+    ...extra
+  });
+
+  const doSignIn = async () => {
+    setAuthError('');
+    try {
+      const res = await fetch(`${API_BASE}/signin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: authEmail, password: authPassword })
+      });
+      const json = await res.json();
+      if (res.ok && json.token) {
+        localStorage.setItem('chimeraAuthToken', json.token);
+        localStorage.setItem('chimeraAuthEmail', json.email);
+        setAuthToken(json.token);
+        setAuthEmail(json.email);
+        setAuthPassword('');
+      } else {
+        setAuthError(json.error || 'Sign in failed');
+      }
+    } catch (e) {
+      setAuthError('Backend unreachable');
+    }
+  };
+
+  const doSignOut = async () => {
+    try {
+      await fetch(`${API_BASE}/signout`, { method: 'POST', headers: authHeaders() });
+    } catch {}
+    localStorage.removeItem('chimeraAuthToken');
+    localStorage.removeItem('chimeraAuthEmail');
+    setAuthToken('');
+    setAuthEmail('');
+    setAuthPassword('');
+    setAuthError('');
+  };
+
   const startNode = async () => {
     if (!evmAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
       setSaveStatus('Invalid EVM address');
@@ -311,7 +358,7 @@ export default function WikiPage({ onBack }) {
     try {
       const res = await fetch(`${API_BASE}/start`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ evmAddress })
       });
       const text = await res.text();
@@ -332,7 +379,7 @@ export default function WikiPage({ onBack }) {
   const stopNode = async () => {
     setSaveStatus('Stopping node...');
     try {
-      const res = await fetch(`${API_BASE}/stop`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/stop`, { method: 'POST', headers: authHeaders() });
       const text = await res.text();
       const json = text ? JSON.parse(text) : {};
       if (json.success) {
@@ -1010,6 +1057,23 @@ export default function WikiPage({ onBack }) {
           )}
         </div>
         <div style={{ padding: '10px 12px', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontSize: 10, color: '#4a4540', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "ui-monospace, SFMono-Regular, 'Cascadia Code', 'Fira Code', monospace" }}>{authToken ? `Signed in` : 'Authentication'}</div>
+          {authToken ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ fontSize: 10, color: '#86efac' }}>{authEmail}</div>
+              <button style={{ ...s.toolbarBtn, padding: '4px 8px', fontSize: 10 }} onClick={doSignOut}>Sign out</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <input style={{ ...s.searchInput, fontSize: 10 }} placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} />
+              <input style={{ ...s.searchInput, fontSize: 10 }} type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') doSignIn(); }} />
+              {authError && <div style={{ fontSize: 9, color: '#fca5a5' }}>{authError}</div>}
+              <button style={{ ...s.toolbarBtn, padding: '4px 8px', fontSize: 10 }} onClick={doSignIn}>Sign in</button>
+              <div style={{ fontSize: 9, color: '#4a4540' }}>First sign-in creates your local account</div>
+            </div>
+          )}
+        </div>
+        <div style={{ padding: '10px 12px', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ fontSize: 10, color: '#4a4540', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "ui-monospace, SFMono-Regular, 'Cascadia Code', 'Fira Code', monospace" }}>Miner Node</div>
           <div style={{ fontSize: 10, color: nodeRunning ? '#86efac' : '#7a7468', lineHeight: 1.5 }}>
             {nodeRunning ? '🟢 Running — earning on inference tasks' : '⚪ Stopped — start to earn'}
@@ -1024,14 +1088,16 @@ export default function WikiPage({ onBack }) {
             <button
               style={{ flex: 1, padding: '5px 0', fontSize: 10, borderRadius: 5, border: 'none', cursor: 'pointer', background: nodeRunning ? '#166534' : '#161410', color: nodeRunning ? '#86efac' : '#7a7468', border: '1px solid rgba(255,255,255,0.07)' }}
               onClick={startNode}
-              disabled={nodeRunning}
+              disabled={nodeRunning || !authToken}
+              title={!authToken ? 'Sign in to start mining' : ''}
             >
               ▶ Start
             </button>
             <button
               style={{ flex: 1, padding: '5px 0', fontSize: 10, borderRadius: 5, border: 'none', cursor: 'pointer', background: !nodeRunning ? '#450a0a' : '#161410', color: !nodeRunning ? '#fca5a5' : '#7a7468', border: '1px solid rgba(255,255,255,0.07)' }}
               onClick={stopNode}
-              disabled={!nodeRunning}
+              disabled={!nodeRunning || !authToken}
+              title={!authToken ? 'Sign in to stop mining' : ''}
             >
               ⏹ Stop
             </button>

@@ -847,7 +847,9 @@ Copy the topic hex and invite others to join.
   _requireAuth(req, res) {
     const auth = this.nodeManager?.authService;
     if (!auth) { serviceUnavailable(res, 'Auth service unavailable'); return false; }
-    if (!auth.isAuthenticated()) { badRequest(res, 'Authentication required'); return false; }
+    const header = req.headers['authorization'] || '';
+    const token = header.replace(/^Bearer\s+/i, '');
+    if (!token || !auth.validateToken(token)) { badRequest(res, 'Authentication required'); return false; }
     return true;
   }
 
