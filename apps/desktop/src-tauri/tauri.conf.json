@@ -12,9 +12,7 @@
     "macOS": {
       "minimumSystemVersion": "10.13"
     },
-    "resources": {
-      "qvac": "resources/qvac"
-    }
+    "resources": ["qvac"]
   },
   "productName": "Chimera",
   "version": "1.0.22",

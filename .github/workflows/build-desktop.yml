@@ -71,8 +71,8 @@ jobs:
           npm run build
       - name: Copy QVAC to Tauri resources
         run: |
-          mkdir -p apps/desktop/src-tauri/resources
-          rsync -av --exclude='node_modules' --exclude='.git' --exclude='target' qvac/ apps/desktop/src-tauri/resources/qvac/
+          mkdir -p apps/desktop/src-tauri/qvac
+          rsync -av --exclude='node_modules' --exclude='.git' --exclude='target' qvac/ apps/desktop/src-tauri/qvac/
       - name: Build Tauri
         uses: tauri-apps/tauri-action@v0
         env:
@@ -111,8 +111,8 @@ jobs:
       - name: Copy QVAC to Tauri resources
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path apps/desktop/src-tauri/resources/qvac
-          Get-ChildItem -Path qvac -Exclude @('node_modules','.git','target') | Copy-Item -Destination apps/desktop/src-tauri/resources/qvac/ -Recurse -Force
+          robocopy qvac apps/desktop/src-tauri/qvac /E /XD node_modules .git target /R:0 /W:0
+          if ($LASTEXITCODE -ge 8) { exit 1 }
       - name: Build Tauri
         uses: tauri-apps/tauri-action@v0
         env:
@@ -152,8 +152,8 @@ jobs:
           npm run build
       - name: Copy QVAC to Tauri resources
         run: |
-          mkdir -p apps/desktop/src-tauri/resources
-          rsync -av --exclude='node_modules' --exclude='.git' --exclude='target' qvac/ apps/desktop/src-tauri/resources/qvac/
+          mkdir -p apps/desktop/src-tauri/qvac
+          rsync -av --exclude='node_modules' --exclude='.git' --exclude='target' qvac/ apps/desktop/src-tauri/qvac/
       - name: Build Tauri
         uses: tauri-apps/tauri-action@v0
         env:
@@ -217,6 +217,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Configure npm
+        run: npm config set legacy-peer-deps true
       - name: Setup JDK
         uses: actions/setup-java@v4
         with:
