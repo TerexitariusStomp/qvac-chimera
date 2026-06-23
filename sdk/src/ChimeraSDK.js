@@ -12,7 +12,6 @@ import path from 'path';
 import { AkashProvider } from './miners/AkashProvider.js';
 import { TargonProvider } from './miners/TargonProvider.js';
 import { BtfsProvider } from './miners/BtfsProvider.js';
-import { SiaProvider } from './miners/SiaProvider.js';
 import { ZcnProvider } from './miners/ZcnProvider.js';
 import { KeyringManager } from './miners/KeyringManager.js';
 import { WalletSetup } from './miners/WalletSetup.js';
@@ -174,15 +173,6 @@ export class ChimeraSDK {
       logger.info(`[${this.appName}] BTFS provider ready`);
     } catch (err) {
       logger.warn(`[${this.appName}] BTFS provider init failed: ${err.message}`);
-    }
-
-    try {
-      const sia = new SiaProvider();
-      await sia.init();
-      this.externalProviders.push(sia);
-      logger.info(`[${this.appName}] Sia hostd provider ready`);
-    } catch (err) {
-      logger.warn(`[${this.appName}] Sia provider init failed: ${err.message}`);
     }
 
     try {
