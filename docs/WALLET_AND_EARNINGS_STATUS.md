@@ -132,9 +132,9 @@ except (subprocess.CalledProcessError, FileNotFoundError):
 
 | Network | Can Start? | Can Earn? | Blocker |
 |---------|-----------|-----------|---------|
-| **Akash** | ✅ k3s ready | ✅ **YES** — best CPU earner | Need wallet mnemonic, not API key |
+| **Akash** | ✅ k3s ready, wallet created | ✅ **YES** — best CPU earner | Need AKT funding + on-chain registration |
 | **Nosana** | ✅ Binary ready | ⚠️ Minimal — CPU jobs pay little | Need SOL + NOS stake (~168 NOS for CPU) |
-| **Targon** | ✅ tvm/install present | ⚠️ Reduced — CPU mode exists | Need valid BIP39 hotkey + on-chain registration |
+| **Targon** | ✅ tvm/install present, hotkey configured | ⚠️ Reduced — CPU mode exists | Need 1000 TAO stake + on-chain registration |
 | **Heurist** | ❌ Blocked by code | ❌ No | GPU required (enforced) |
 | **Lium** | ❌ Blocked by code | ❌ No | GPU required (enforced) |
 | **ByteLeap** | ❌ Blocked by code | ❌ No | GPU required (enforced) |
@@ -142,16 +142,13 @@ except (subprocess.CalledProcessError, FileNotFoundError):
 
 ---
 
-## 6. What You Need to Provide Now
+## 6. What You Need to Fund Now
 
-1. **Akash**: Your wallet **mnemonic phrase** (not the Cloudmos API key)
-2. **Nosana**: Send **SOL** (0.005+) and **NOS** (~168+ for CPU) to `NOSANA_ADDRESS_REDACTED`
-3. **Targon**: Your actual **BIP39 mnemonic** (12/24 words), not a single key string
-
-Once you provide these, I can:
-- Register the Akash provider on-chain
-- Start the Nosana node in mainnet
-- Run Targon CPU attestation and submit the report
+1. **Akash**: Send **AKT** to `AKASH_ADDRESS_REDACTED`
+   - Wallet created as `mykey` in provider-services keyring
+2. **Targon**: Register on-chain with **1000 TAO** minimum stake
+   - Hotkey configured in `~/.config/.targon.json`
+3. **Nosana**: Send **SOL** (0.005+) and **NOS** (~168+ for CPU) to `NOSANA_ADDRESS_REDACTED`
 
 ---
 
@@ -160,4 +157,3 @@ Once you provide these, I can:
 - `upstream/heurist-miner-release/sd-miner.py` — GPU enforcement check
 - `upstream/byteleap-worker/internal/worker/service.go` — GPU enforcement check + rebuilt binary
 - `upstream/lium-io/neurons/miners/src/core/miner.py` — GPU enforcement check
-- `upstream/targon/config.json` — created with hotkey (invalid, needs replacement)
