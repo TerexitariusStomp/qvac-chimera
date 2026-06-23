@@ -25,3 +25,21 @@
 [submodule "upstream/targon"]
 	path = upstream/targon
 	url = https://github.com/manifold-inc/targon
+[submodule "upstream/hippius-storage-miner"]
+	path = upstream/hippius-storage-miner
+	url = https://github.com/thenervelab/hippius-storage-miner.git
+[submodule "upstream/sia-hostd"]
+	path = upstream/sia-hostd
+	url = https://github.com/siafoundation/hostd.git
+[submodule "upstream/zcn-blobber"]
+	path = upstream/zcn-blobber
+	url = https://github.com/0chain/blobber.git
+[submodule "upstream/btfs"]
+	path = upstream/btfs
+	url = https://github.com/bittorrent/go-btfs.git
+[submodule "upstream/filecoin-lotus"]
+	path = upstream/filecoin-lotus
+	url = https://github.com/filecoin-project/lotus.git
+[submodule "upstream/arweave-node"]
+	path = upstream/arweave-node
+	url = https://github.com/ArweaveTeam/arweave.git
