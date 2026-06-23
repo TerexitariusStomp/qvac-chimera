@@ -6,13 +6,22 @@
  */
 
 import { spawn } from 'child_process';
+import { execSync } from 'child_process';
 import { KeyringManager } from './KeyringManager.js';
+
+function hasNvidiaGpu() {
+  try {
+    execSync('nvidia-smi -L', { stdio: 'ignore' });
+    return true;
+  } catch { return false; }
+}
 
 export class AkashProvider {
   constructor(opts = {}) {
     this.keyName = null;
     this.kubeconfig = null;
     this.akashNode = opts.akashNode || 'https://rpc.akashnet.net:443';
+    this.gpuMode = opts.gpuMode ?? hasNvidiaGpu(); // auto-detect unless overridden
     this.process = null;
     this.running = false;
     this.logs = [];
@@ -82,6 +91,8 @@ export class AkashProvider {
       pid: this.process?.pid || null,
       keyName: this.keyName,
       akashNode: this.akashNode,
+      gpuMode: this.gpuMode,
+      resources: this.gpuMode ? 'CPU + GPU' : 'CPU only',
       recentLogs: this.logs.slice(-10)
     };
   }
