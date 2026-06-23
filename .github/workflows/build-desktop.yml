@@ -347,54 +347,7 @@ jobs:
       - name: Generate ProGuard keep rules for QVAC SDK
         run: |
           PROGUARD=apps/mobile-expo/android/app/proguard-rules.pro
-          python3 -c "
-import textwrap
-rules = textwrap.dedent('''
-  # Keep React Native
-  -keep class com.facebook.react.** { *; }
-  -keep class com.facebook.react.bridge.** { *; }
-  -keep class com.facebook.react.uimanager.** { *; }
-  -keep class com.facebook.react.modules.** { *; }
-  -keep class com.facebook.react.views.** { *; }
-
-  # Keep Expo modules
-  -keep class expo.modules.** { *; }
-  -keepclassmembers class expo.modules.** { *; }
-
-  # Keep react-native-webview
-  -keep class com.reactnativecommunity.webview.** { *; }
-
-  # Keep react-native-bare-kit
-  -keep class to.hole.bare.** { *; }
-  -keep class to.hole.baresock.** { *; }
-  -keep class to.hole.barekit.** { *; }
-  -keepclassmembers class to.hole.bare.** { *; }
-  -keepclassmembers class to.hole.baresock.** { *; }
-  -keepclassmembers class to.hole.barekit.** { *; }
-
-  # Keep @qvac/sdk and llm addon
-  -keep class com.qvac.sdk.** { *; }
-  -keep class com.qvac.addons.llm.** { *; }
-  -keepclassmembers class com.qvac.sdk.** { *; }
-  -keepclassmembers class com.qvac.addons.llm.** { *; }
-
-  # Keep native methods and JNI classes
-  -keepclasseswithmembernames class * {
-      native <methods>;
-  }
-  -keep class * implements java.io.Serializable { *; }
-  -keepclassmembers class * implements java.io.Serializable {
-      static final long serialVersionUID;
-      private static final java.io.ObjectStreamField[] serialPersistentFields;
-      private void writeObject(java.io.ObjectOutputStream);
-      private void readObject(java.io.ObjectInputStream);
-      java.lang.Object writeReplace();
-      java.lang.Object readResolve();
-  }
-''').strip()
-with open('$PROGUARD', 'w') as f:
-    f.write(rules)
-"
+          echo 'IyBLZWVwIFJlYWN0IE5hdGl2ZQota2VlcCBjbGFzcyBjb20uZmFjZWJvb2sucmVhY3QuKiogeyAqOyB9Ci1rZWVwIGNsYXNzIGNvbS5mYWNlYm9vay5yZWFjdC5icmlkZ2UuKiogeyAqOyB9Ci1rZWVwIGNsYXNzIGNvbS5mYWNlYm9vay5yZWFjdC51aW1hbmFnZXIuKiogeyAqOyB9Ci1rZWVwIGNsYXNzIGNvbS5mYWNlYm9vay5yZWFjdC5tb2R1bGVzLioqIHsgKjsgfQota2VlcCBjbGFzcyBjb20uZmFjZWJvb2sucmVhY3Qudmlld3MuKiogeyAqOyB9CgojIEtlZXAgRXhwbyBtb2R1bGVzCi1rZWVwIGNsYXNzIGV4cG8ubW9kdWxlcy4qKiB7ICo7IH0KLWtlZXBjbGFzc21lbWJlcnMgY2xhc3MgZXhwby5tb2R1bGVzLioqIHsgKjsgfQoKIyBLZWVwIHJlYWN0LW5hdGl2ZS13ZWJ2aWV3Ci1rZWVwIGNsYXNzIGNvbS5yZWFjdG5hdGl2ZWNvbW11bml0eS53ZWJ2aWV3LioqIHsgKjsgfQoKIyBLZWVwIHJlYWN0LW5hdGl2ZS1iYXJlLWtpdAota2VlcCBjbGFzcyB0by5ob2xlLmJhcmUuKiogeyAqOyB9Ci1rZWVwIGNsYXNzIHRvLmhvbGUuYmFyZXNvY2suKiogeyAqOyB9Ci1rZWVwIGNsYXNzIHRvLmhvbGUuYmFyZWtpdC4qKiB7ICo7IH0KLWtlZXBjbGFzc21lbWJlcnMgY2xhc3MgdG8uaG9sZS5iYXJlLioqIHsgKjsgfQota2VlcGNsYXNzbWVtYmVycyBjbGFzcyB0by5ob2xlLmJhcmVzb2NrLioqIHsgKjsgfQota2VlcGNsYXNzbWVtYmVycyBjbGFzcyB0by5ob2xlLmJhcmVraXQuKiogeyAqOyB9CgojIEtlZXAgQHF2YWMvc2RrIGFuZCBsbG0gYWRkb24KLWtlZXAgY2xhc3MgY29tLnF2YWMuc2RrLioqIHsgKjsgfQota2VlcCBjbGFzcyBjb20ucXZhYy5hZGRvbnMubGxtLioqIHsgKjsgfQota2VlcGNsYXNzbWVtYmVycyBjbGFzcyBjb20ucXZhYy5zZGsuKiogeyAqOyB9Ci1rZWVwY2xhc3NtZW1iZXJzIGNsYXNzIGNvbS5xdmFjLmFkZG9ucy5sbG0uKiogeyAqOyB9CgojIEtlZXAgbmF0aXZlIG1ldGhvZHMgYW5kIEpOSSBjbGFzc2VzCi1rZWVwY2xhc3Nlc3dpdGhtZW1iZXJuYW1lcyBjbGFzcyAqIHsKICAgIG5hdGl2ZSA8bWV0aG9kcz47Cn0KLWtlZXAgY2xhc3MgKiBpbXBsZW1lbnRzIGphdmEuaW8uU2VyaWFsaXphYmxlIHsgKjsgfQota2VlcGNsYXNzbWVtYmVycyBjbGFzcyAqIGltcGxlbWVudHMgamF2YS5pby5TZXJpYWxpemFibGUgewogICAgc3RhdGljIGZpbmFsIGxvbmcgc2VyaWFsVmVyc2lvblVJRDsKICAgIHByaXZhdGUgc3RhdGljIGZpbmFsIGphdmEuaW8uT2JqZWN0U3RyZWFtRmllbGRbXSBzZXJpYWxQZXJzaXN0ZW50RmllbGRzOwogICAgcHJpdmF0ZSB2b2lkIHdyaXRlT2JqZWN0KGphdmEuaW8uT2JqZWN0T3V0cHV0U3RyZWFtKTsKICAgIHByaXZhdGUgdm9pZCByZWFkT2JqZWN0KGphdmEuaW8uT2JqZWN0SW5wdXRTdHJlYW0pOwogICAgamF2YS5sYW5nLk9iamVjdCB3cml0ZVJlcGxhY2UoKTsKICAgIGphdmEubGFuZy5PYmplY3QgcmVhZFJlc29sdmUoKTsKfQ==' | base64 -d > "$PROGUARD"
           echo "=== ProGuard rules ==="
           cat "$PROGUARD"
       - name: Build Expo AAB (Play Store) and APKs
