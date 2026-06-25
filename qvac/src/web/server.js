@@ -888,6 +888,7 @@ Copy the topic hex and invite others to join.
   }
 
   async handleStart(req, res) {
+    if (!this._requireAuth(req, res)) return;
     if (!this.nodeManager) { serviceUnavailable(res, 'Node manager not available'); return; }
     const body = await parseBody(req);
 
@@ -988,6 +989,7 @@ Copy the topic hex and invite others to join.
   }
 
   async handleStop(req, res) {
+    if (!this._requireAuth(req, res)) return;
     if (!this.nodeManager) { serviceUnavailable(res, 'Node manager not available'); return; }
     // Only stop miners — inference node keeps running so the user can
     // browse the wiki and use AI features without earning.
