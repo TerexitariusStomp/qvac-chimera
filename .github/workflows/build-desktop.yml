@@ -362,7 +362,7 @@ jobs:
           ./gradlew --version
           ./gradlew bundleRelease -x mergeReleaseNativeDebugMetadata
           ./gradlew assembleRelease -x mergeReleaseNativeDebugMetadata
-          ./gradlew assembleArm64-v8aDebug -x mergeReleaseNativeDebugMetadata
+          ./gradlew assembleDebug -x mergeReleaseNativeDebugMetadata
       - name: Show build outputs and verify sizes
         run: |
           echo "=== AAB ==="
