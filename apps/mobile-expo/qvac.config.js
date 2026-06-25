@@ -1,3 +1,3 @@
 module.exports = {
-  plugins: ["llm"]
+  plugins: ["@qvac/sdk/llamacpp-completion/plugin"]
 };
