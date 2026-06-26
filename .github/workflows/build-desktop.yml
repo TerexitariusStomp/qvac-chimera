@@ -307,7 +307,7 @@ jobs:
         run: |
           cd apps/mobile-expo
           for i in 1 2 3; do
-            npm install && break
+            npm install --legacy-peer-deps && break
             echo "npm install attempt $i failed, retrying in 15s..."
             sleep 15
           done
