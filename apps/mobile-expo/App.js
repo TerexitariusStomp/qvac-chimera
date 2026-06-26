@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, ActivityIndicator, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, View, Text, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
@@ -11,8 +11,6 @@ export default function App() {
   const [modelId, setModelId] = useState(null);
   const [modelError, setModelError] = useState(null);
   const [walletAddress, setWalletAddress] = useState(null);
-  const [walletInput, setWalletInput] = useState('');
-  const [walletError, setWalletError] = useState('');
   const [miningRunning, setMiningRunning] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [swarmTopics, setSwarmTopics] = useState([]);
@@ -34,9 +32,9 @@ export default function App() {
     initFrontend();
   }, []);
 
-  // Load model on user request only — prevents startup crash from killing the app
+  // Load model on user request only — never blocks the UI or crashes the app
   async function loadLLM() {
-    if (modelStatus === 'loading') return;
+    if (modelStatus === 'loading' || modelStatus === 'ready') return;
     setModelStatus('loading');
     setModelError(null);
     try {
@@ -53,7 +51,6 @@ export default function App() {
       console.error('Model load error:', e);
       setModelStatus('error');
       setModelError(e.message || 'Failed to load model');
-      throw e;
     }
   }
 
@@ -61,15 +58,16 @@ export default function App() {
     if (!modelId) {
       await loadLLM();
     }
-    if (!modelId) throw new Error('Model not loaded');
+    if (!modelId) throw new Error('Model not loaded — tap Start to load the AI model');
   }
 
   async function handleStart(body) {
     const address = body?.evmAddress || body?.walletAddress || walletAddress || null;
     if (address) setWalletAddress(address);
-    await loadLLM();
     setMiningRunning(true);
     setAuthed(true);
+    // Load model in background — don't block the start response
+    loadLLM().catch(() => {});
     return {
       success: true,
       data: {
@@ -81,21 +79,14 @@ export default function App() {
     };
   }
 
-  const onStartPress = async () => {
-    setWalletError('');
-    const addr = walletInput.trim();
-    if (!addr.match(/^0x[a-fA-F0-9]{40}$/)) {
-      setWalletError('Enter a valid 42-character EVM address (0x...)');
-      return;
-    }
-    setWalletAddress(addr);
-    await loadLLM();
-  };
-
   async function handleAIWrite(body) {
-    await ensureModelLoaded();
     const prompt = body.prompt?.trim();
     if (!prompt) return { success: false, error: 'Prompt is required' };
+    try {
+      await ensureModelLoaded();
+    } catch (e) {
+      return { success: false, error: e.message || 'AI model not loaded' };
+    }
     const title = body.title?.trim() || '';
     const fullPrompt = `Write a wiki article${title ? ` titled "${title}"` : ''} about: ${prompt}`;
     const history = [{ role: 'user', content: fullPrompt }];
@@ -326,7 +317,11 @@ export default function App() {
   async function handleLLMWikiCreate(body) {
     const { topic = '', prompt: customPrompt = '', category = 'concepts' } = body;
     if (!topic && !customPrompt) return { success: false, error: 'topic or prompt is required' };
-    await ensureModelLoaded();
+    try {
+      await ensureModelLoaded();
+    } catch (e) {
+      return { success: false, error: e.message || 'AI model not loaded' };
+    }
     const fullPrompt = `Write a comprehensive wiki page about: ${customPrompt || topic}`;
     const history = [{ role: 'user', content: fullPrompt }];
     const result = completion({ modelId, history, stream: false });
@@ -735,47 +730,6 @@ export default function App() {
     );
   }
 
-  // Setup screen: shown until the model is loaded for the first time.
-  // Wallet address + Start loads the model. After that, the web frontend takes over.
-  if (modelStatus !== 'ready') {
-    return (
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <View style={styles.setupCard}>
-          <Text style={styles.setupTitle}>Chimera</Text>
-          <Text style={styles.setupSubtitle}>Start your local AI device</Text>
-          <TextInput
-            style={[styles.walletInput, walletError ? styles.walletInputError : null]}
-            placeholder="0x... EVM wallet address"
-            placeholderTextColor="#7a7468"
-            value={walletInput}
-            onChangeText={setWalletInput}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {walletError ? <Text style={styles.errorText}>{walletError}</Text> : null}
-          {modelStatus === 'error' ? <Text style={styles.errorText}>Model error: {modelError}</Text> : null}
-          <TouchableOpacity
-            style={styles.startBtn}
-            onPress={onStartPress}
-            disabled={modelStatus === 'loading'}
-          >
-            {modelStatus === 'loading' ? (
-              <ActivityIndicator size="small" color="#0a0a14" />
-            ) : (
-              <Text style={styles.startBtnText}>▶ Start</Text>
-            )}
-          </TouchableOpacity>
-          {modelStatus === 'loading' && (
-            <Text style={styles.loadingText}>{modelStatus}</Text>
-          )}
-        </View>
-      </KeyboardAvoidingView>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <WebView
@@ -789,6 +743,21 @@ export default function App() {
         allowFileAccess={true}
         allowUniversalAccessFromFileURLs={true}
         originWhitelist={['*']}
+        sharedCookiesEnabled={true}
+        thirdPartyCookiesEnabled={true}
+        allowsInlineMediaPlayback={true}
+        onShouldStartLoadWithRequest={(request) => {
+          // Allow Privy OAuth redirects — don't block navigation to auth domains
+          const url = request.url || '';
+          if (url.startsWith('file://') ||
+              url.startsWith('http://') ||
+              url.startsWith('https://') ||
+              url.startsWith('io.chimera://') ||
+              url.startsWith('chimera://')) {
+            return true;
+          }
+          return true;
+        }}
       />
     </View>
   );
@@ -809,64 +778,5 @@ const styles = StyleSheet.create({
     color: '#e8e2d8',
     marginTop: 16,
     fontSize: 14,
-  },
-  setupCard: {
-    width: '85%',
-    maxWidth: 360,
-    backgroundColor: '#0b0a09',
-    borderRadius: 12,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'stretch',
-  },
-  setupTitle: {
-    color: '#e8e2d8',
-    fontSize: 24,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 6,
-  },
-  setupSubtitle: {
-    color: '#7a7468',
-    fontSize: 13,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  walletInput: {
-    backgroundColor: '#0a0a12',
-    color: '#e8e2d8',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    marginBottom: 10,
-  },
-  walletInputError: {
-    borderColor: '#b91c1c',
-  },
-  errorText: {
-    color: '#fca5a5',
-    fontSize: 12,
-    marginBottom: 10,
-  },
-  startBtn: {
-    backgroundColor: '#c9a96e',
-    borderRadius: 6,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  startBtnText: {
-    color: '#0e0d0b',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  loadingText: {
-    color: '#7a7468',
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 12,
   },
 });
