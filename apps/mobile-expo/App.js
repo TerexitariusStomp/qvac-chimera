@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
 import { loadModel, completion, BITNET_0_7B_INST_TQ2_0 } from '@qvac/sdk';
-import assetModules from './generated-asset-requires';
+
+const FRONTEND_URL = 'https://new.localchimera.com/inference/';
 
 export default function App() {
   const [modelStatus, setModelStatus] = useState('idle');
-  const [frontendHtml, setFrontendHtml] = useState(null);
-  const [frontendBaseUri, setFrontendBaseUri] = useState(null);
+  const [frontendUri, setFrontendUri] = useState(null);
   const [modelId, setModelId] = useState(null);
   const [modelError, setModelError] = useState(null);
   const [walletAddress, setWalletAddress] = useState(null);
@@ -20,41 +19,9 @@ export default function App() {
   const bridgeResolvers = useRef(new Map());
   const nodeIdRef = useRef('chimera-' + Math.random().toString(36).slice(2, 14));
 
-  // Load frontend immediately (never block UI on model)
+  // Load frontend immediately — use remote URL which has all assets
   useEffect(() => {
-    async function initFrontend() {
-      try {
-        // Create a local directory to hold all frontend files with proper structure
-        const localDir = FileSystem.cacheDirectory + 'frontend/';
-        await FileSystem.makeDirectoryAsync(localDir, { intermediates: true });
-
-        // Load and copy the main HTML file
-        const htmlAsset = await Asset.fromModule(require('./assets/frontend/index.html'));
-        const htmlUri = htmlAsset.localUri || htmlAsset.uri;
-        const html = await FileSystem.readAsStringAsync(htmlUri);
-
-        // Load all asset files and copy them to localDir preserving structure
-        const assetEntries = Object.entries(assetModules);
-        await Promise.all(assetEntries.map(async ([relPath, mod]) => {
-          const asset = await Asset.fromModule(mod);
-          const srcUri = asset.localUri || asset.uri;
-          const destUri = localDir + relPath;
-          const destDir = destUri.substring(0, destUri.lastIndexOf('/'));
-          await FileSystem.makeDirectoryAsync(destDir, { intermediates: true });
-          await FileSystem.copyAsync({ from: srcUri, to: destUri });
-        }));
-
-        // Write HTML to localDir
-        await FileSystem.writeAsStringAsync(localDir + 'index.html', html);
-
-        setFrontendHtml(html);
-        setFrontendBaseUri(localDir);
-      } catch (e) {
-        console.error('Frontend load error:', e);
-        setFrontendHtml('');
-      }
-    }
-    initFrontend();
+    setFrontendUri(FRONTEND_URL);
   }, []);
 
   // Load model on user request only — never blocks the UI or crashes the app
@@ -738,7 +705,7 @@ export default function App() {
     })();
   `;
 
-  if (!frontendHtml) {
+  if (!frontendUri) {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#00e5ff" />
@@ -747,19 +714,11 @@ export default function App() {
     );
   }
 
-  if (frontendHtml === '') {
-    return (
-      <View style={styles.container}>
-        <Text style={[styles.text, { color: '#ff6b6b' }]}>Failed to load frontend assets</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <WebView
         ref={webViewRef}
-        source={{ html: frontendHtml, baseUrl: frontendBaseUri }}
+        source={{ uri: frontendUri }}
         style={styles.webview}
         injectedJavaScript={injectedBridge}
         onMessage={handleWebViewMessage}

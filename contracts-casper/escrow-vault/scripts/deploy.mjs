@@ -4,12 +4,12 @@ import pkg from 'casper-js-sdk';
 const sdk = pkg;
 const { PrivateKey, PublicKey, KeyAlgorithm, CLValue, Args, DeployHeader, ExecutableDeployItem, Deploy } = sdk;
 
-const WASM_PATH = '/home/user/CascadeProjects/chimera-fortytwo-node/contracts-casper/target/wasm32-unknown-unknown/release/escrow_vault.wasm';
-const RPC_URL = 'http://localhost:7778/rpc';
+const WASM_PATH = '/home/user/CascadeProjects/localchimera/contracts-casper/target/wasm32-unknown-unknown/release/escrow_vault.wasm';
+const RPC_URL = 'https://node.testnet.casper.network/rpc';
 const CHAIN_NAME = 'casper-test';
 
 const CONTRACTS = {
-  computeRegistry: 'f8c969bfa7553a23deab0f77fb43210d4810156a977e0cc2695b23182e5b41d0',
+  computeRegistry: 'bed17bda7a3597725a5d19531faae67bd2f68f08be17d02ea36a6830be2fc152',
   reputation: 'fd0bf02161433c13c3070b7d0ea383c976bcbc799413638b4fedc703d4efa1db',
 };
 
