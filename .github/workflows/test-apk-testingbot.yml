@@ -74,6 +74,13 @@ jobs:
         run: npm install webdriverio
         working-directory: scripts
 
+      - name: Create placeholder output files
+        run: |
+          touch scripts/screenshot-01-launch.png 2>/dev/null || true
+          echo "(not captured)" > scripts/logcat-early.txt
+          echo "(not captured)" > scripts/logcat.txt
+          echo "(not captured)" > scripts/page-source.xml
+
       - name: Run smoke test on real Android device
         env:
           TESTINGBOT_KEY: ${{ secrets.TESTINGBOT_KEY }}

@@ -4,7 +4,7 @@ import { Button, Input, Card } from './ui';
 import { Send, Cpu, HardDrive, Monitor, RefreshCw, Users } from 'lucide-react';
 import type { TxRecord } from '../types';
 import * as sdk from 'casper-js-sdk';
-import { getMinimumStake, getRegisteredProviders } from '../casper-client';
+import { getMinimumStake, getRegisteredProviders, callEntryPointWithWallet, getDeployStatus } from '../casper-client';
 
 function modelToTaskTypeMask(model: string): number {
   if (model.includes('embedding')) return 2;
@@ -126,12 +126,35 @@ export default function ComputeRegistryTab({ provider, publicKeyHex, contractHas
               e.preventDefault();
               if (!canSign || parseFloat(stakeCSPR) <= 0) return;
               setStep('registering');
+
+              // Step 1: Register provider on-chain
               await submit('register_provider', {
                 qvac_peer_id: sdk.CLValue.newCLString(deviceInfo.peerId),
                 name: sdk.CLValue.newCLString(peerName),
                 task_types: sdk.CLValue.newCLUInt32(modelToTaskTypeMask(effectiveModel)),
                 stake_amount: sdk.CLValue.newCLUInt512(stakeMotes),
               });
+
+              // Step 2: Wait for registration to confirm, then update provider capacity
+              // with machine specs (model, gpu, vram)
+              try {
+                // Wait ~15s for the registration deploy to be processed
+                await new Promise(r => setTimeout(r, 15000));
+                const capacityResult = await callEntryPointWithWallet(
+                  provider, publicKeyHex, contractHash, 'update_provider_capacity',
+                  {
+                    resource_type: sdk.CLValue.newCLString('inference'),
+                    models: sdk.CLValue.newCLString(effectiveModel),
+                    gpu: sdk.CLValue.newCLValueBool(false),
+                    vram_mb: sdk.CLValue.newCLUint64('0'),
+                  },
+                  '5000000000',
+                );
+                onTx({ id: Date.now().toString(), deployHash: capacityResult.deployHash, entryPoint: 'update_provider_capacity', contract: 'ComputeRegistry', status: capacityResult.error ? 'error' : 'pending', error: capacityResult.error });
+              } catch (err: any) {
+                console.error('update_provider_capacity failed:', err.message);
+              }
+
               setRegisteredProviders(prev => [...prev, {
                 address: publicKeyHex ? sdk.PublicKey.fromHex(publicKeyHex).accountHash().toPrefixedString() : '',
                 peerId: deviceInfo.peerId,
@@ -165,8 +188,8 @@ export default function ComputeRegistryTab({ provider, publicKeyHex, contractHas
               )}
               {step !== 'idle' && (
                 <div className="text-xs text-blue-600">
-                  {step === 'registering' && 'Registering provider...'}
-                  {step === 'done' && 'Done! Check transactions for status.'}
+                  {step === 'registering' && 'Registering provider & updating machine specs...'}
+                  {step === 'done' && 'Done! Provider registered with model specs. Check transactions for status.'}
                 </div>
               )}
               <Button type="submit" disabled={!canSign || !effectiveModel || !peerName.trim() || step === 'registering' || (hasMinStake && Number(stakeCSPR) < Number(minStakeCSPR))} className="w-full">
