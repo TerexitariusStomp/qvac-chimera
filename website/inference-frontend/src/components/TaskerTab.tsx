@@ -553,75 +553,138 @@ export default function TaskerTab({ provider, publicKeyHex, accountHash, onTx }:
         )}
 
         {resource === 'compute' && (
-        <EntryPointCard title="Compute" contract="EscrowVault" contractHash={CONTRACTS.escrowVault} provider={provider} publicKeyHex={publicKeyHex} onTx={onTx}>
+        <EntryPointCard title="Submit Compute Job" contract="EscrowVault" contractHash={CONTRACTS.escrowVault} provider={provider} publicKeyHex={publicKeyHex} onTx={onTx}>
           {() => {
             const [amount, setAmount] = useState('10');
-            const [codeDesc, setCodeDesc] = useState('');
-            const [runtime, setRuntime] = useState('wasm');
+            const [code, setCode] = useState('');
+            const [runtime, setRuntime] = useState('shell');
+            const [cpuCores, setCpuCores] = useState('2');
+            const [ramMb, setRamMb] = useState('512');
+            const [gpu, setGpu] = useState(false);
+            const [timeoutSec, setTimeoutSec] = useState('30');
+            const [submitting, setSubmitting] = useState(false);
             const amountMotes = Math.floor(parseFloat(amount || '0') * 1e9).toString();
             const handleSubmit = async (e: any) => {
               e.preventDefault();
-              if (!canSign || !codeDesc.trim()) return;
-              const consumerHash = sdk.PublicKey.fromHex(publicKeyHex).accountHash();
-              const zeroHash = new Uint8Array(32);
-              const orderId = `COMPUTE:${runtime}:${codeDesc.trim()}`;
-              const result = await callEntryPointWithWallet(provider, publicKeyHex, CONTRACTS.escrowVault, 'create_job', {
-                consumer: sdk.CLValue.newCLByteArray(consumerHash.toBytes()),
-                provider: sdk.CLValue.newCLByteArray(zeroHash),
-                amount: sdk.CLValue.newCLUInt512(amountMotes),
-                provider_fee_bps: sdk.CLValue.newCLUint64('0'),
-                order_id: sdk.CLValue.newCLString(orderId),
-              });
-              if (result.deployHash) {
-                onTx({ id: Date.now().toString(), deployHash: result.deployHash, entryPoint: 'create_job', contract: 'EscrowVault', status: result.error ? 'error' : 'pending', error: result.error });
+              if (!canSign || !code.trim()) return;
+              setSubmitting(true);
+              try {
+                const consumerHash = sdk.PublicKey.fromHex(publicKeyHex).accountHash();
+                const zeroHash = new Uint8Array(32);
+                const orderId = `COMPUTE:${runtime}:${cpuCores}:${ramMb}:${gpu ? '1' : '0'}:${timeoutSec}:${code.trim()}`;
+                const result = await callEntryPointWithWallet(provider, publicKeyHex, CONTRACTS.escrowVault, 'create_job', {
+                  consumer: sdk.CLValue.newCLByteArray(consumerHash.toBytes()),
+                  provider: sdk.CLValue.newCLByteArray(zeroHash),
+                  amount: sdk.CLValue.newCLUInt512(amountMotes),
+                  provider_fee_bps: sdk.CLValue.newCLUint64('0'),
+                  order_id: sdk.CLValue.newCLString(orderId),
+                });
+                if (result.deployHash) {
+                  onTx({ id: Date.now().toString(), deployHash: result.deployHash, entryPoint: 'create_job', contract: 'EscrowVault', status: result.error ? 'error' : 'pending', error: result.error });
+                }
+              } finally {
+                setSubmitting(false);
               }
             };
-            const completedJobs = jobs.filter(j => j.state >= 3 && j.responseHash && j.requestHash?.startsWith('COMPUTE:'));
+            const computeJobs = jobs.filter(j => j.requestHash?.startsWith('COMPUTE:'));
+            const queuedJobs = computeJobs.filter(j => j.state === 0 || j.state === 1);
+            const runningJobs = computeJobs.filter(j => j.state === 2);
+            const completedComputeJobs = computeJobs.filter(j => j.state >= 3 && j.responseHash);
             return <div className="space-y-3">
               <form onSubmit={handleSubmit} className="space-y-2">
-                <div className="text-xs text-muted-foreground flex items-center gap-1"><Cpu className="h-3 w-3 text-[#00e5ff]" />Request compute resources. Provider executes your code and returns the output.</div>
+                <div className="text-xs text-muted-foreground flex items-center gap-1"><Cpu className="h-3 w-3 text-[#00e5ff]" />Submit a compute job with resource constraints. The provider enqueues and executes it asynchronously — track status below.</div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium">Runtime</label>
                   <select value={runtime} onChange={(e) => setRuntime(e.target.value)}
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    <option value="wasm">WebAssembly</option>
-                    <option value="docker">Docker</option>
                     <option value="shell">Shell Script</option>
+                    <option value="wasm">WebAssembly</option>
+                    <option value="docker">Docker Container</option>
                   </select>
                 </div>
-                <Input label="Code / Command" value={codeDesc} onChange={setCodeDesc} placeholder="e.g. echo 'Hello World' or script hash" />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input label="CPU Cores" value={cpuCores} onChange={setCpuCores} />
+                  <Input label="RAM (MB)" value={ramMb} onChange={setRamMb} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input label="Timeout (sec)" value={timeoutSec} onChange={setTimeoutSec} />
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">GPU Required</label>
+                    <button type="button" onClick={() => setGpu(!gpu)}
+                      className={`flex h-9 w-full items-center justify-center rounded-md border text-sm ${gpu ? 'border-[#00e5ff] bg-[#00e5ff]/10 text-[#00e5ff]' : 'border-input bg-transparent text-muted-foreground'}`}>
+                      {gpu ? 'GPU ON' : 'No GPU'}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Code / Script</label>
+                  <textarea value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. python3 -c 'print(sum(range(100)))'"
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs font-mono shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+                </div>
                 <Input label="Funds (CSPR)" value={amount} onChange={setAmount} />
-                <Button type="submit" disabled={!canSign || !codeDesc.trim()} className="w-full"><Cpu className="h-4 w-4 mr-1" />Request Compute</Button>
+                <Button type="submit" disabled={!canSign || !code.trim() || submitting} className="w-full">
+                  <Cpu className="h-4 w-4 mr-1" />{submitting ? 'Submitting...' : 'Submit Compute Job'}
+                </Button>
               </form>
-              {completedJobs.length > 0 && (
-                <div className="space-y-2 mt-3 border-t border-white/10 pt-3">
-                  <div className="text-xs font-semibold text-[#00e5ff] flex items-center gap-1"><CheckCircle className="h-3 w-3" />Compute Results</div>
-                  {completedJobs.slice(-5).reverse().map((job) => (
-                    <div key={job.id} className="bg-white/[0.03] border border-white/10 rounded-lg p-3 space-y-2">
-                      {job.requestHash && (
-                        <div className="space-y-1">
-                          <div className="text-[10px] text-[#7a7468] font-semibold">Request</div>
-                          <div className="text-xs text-[#e8e2d8] whitespace-pre-wrap break-words">{job.requestHash}</div>
-                        </div>
-                      )}
-                      <div className="space-y-1">
-                        <div className="text-[10px] text-[#00e5ff] font-semibold">Output</div>
-                        <div className="text-xs text-[#e8e2d8] whitespace-pre-wrap break-words">{job.responseHash}</div>
+
+              {queuedJobs.length > 0 && (
+                <div className="space-y-1 mt-3 border-t border-white/10 pt-3">
+                  <div className="text-xs font-semibold text-[#fbbf24] flex items-center gap-1">
+                    <span className="inline-block h-2 w-2 rounded-full bg-[#fbbf24] animate-pulse" />Job Queue ({queuedJobs.length})
+                  </div>
+                  {queuedJobs.slice(0, 5).map((job) => (
+                    <div key={job.id} className="flex items-center justify-between text-xs bg-white/[0.02] rounded p-2 overflow-hidden">
+                      <div className="flex-1 min-w-0 mr-2">
+                        <div className="font-mono text-[10px] text-[#7a7468] truncate">{job.id}</div>
+                        <div className="font-mono text-[10px] text-[#7a7468] truncate">{job.requestHash?.slice(0, 60)}</div>
                       </div>
-                      <div className="text-[10px] text-[#7a7468]">Status: {job.status}</div>
+                      <span className="text-[#fbbf24] shrink-0 text-[10px] px-2 py-0.5 rounded bg-[#fbbf24]/10">{job.status}</span>
                     </div>
                   ))}
                 </div>
               )}
-              {jobs.length > 0 && jobs.filter(j => j.state < 3 && j.requestHash?.startsWith('COMPUTE:')).length > 0 && (
+
+              {runningJobs.length > 0 && (
                 <div className="space-y-1 mt-3 border-t border-white/10 pt-3">
-                  <div className="text-xs font-semibold text-[#7a7468]">Pending Compute Jobs</div>
-                  {jobs.filter(j => j.state < 3 && j.requestHash?.startsWith('COMPUTE:')).slice(0, 5).map((job) => (
+                  <div className="text-xs font-semibold text-[#00e5ff] flex items-center gap-1">
+                    <span className="inline-block h-2 w-2 rounded-full bg-[#00e5ff] animate-pulse" />Running ({runningJobs.length})
+                  </div>
+                  {runningJobs.slice(0, 5).map((job) => (
                     <div key={job.id} className="flex items-center justify-between text-xs bg-white/[0.02] rounded p-2 overflow-hidden">
-                      <span className="font-mono text-[10px] text-[#7a7468] truncate flex-1 mr-2">{job.id}</span>
-                      <span className="text-[#00e5ff] shrink-0">{job.status}</span>
+                      <div className="flex-1 min-w-0 mr-2">
+                        <div className="font-mono text-[10px] text-[#7a7468] truncate">{job.id}</div>
+                        <div className="font-mono text-[10px] text-[#7a7468] truncate">{job.requestHash?.slice(0, 60)}</div>
+                      </div>
+                      <span className="text-[#00e5ff] shrink-0 text-[10px] px-2 py-0.5 rounded bg-[#00e5ff]/10">{job.status}</span>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {completedComputeJobs.length > 0 && (
+                <div className="space-y-2 mt-3 border-t border-white/10 pt-3">
+                  <div className="text-xs font-semibold text-green-400 flex items-center gap-1"><CheckCircle className="h-3 w-3" />Completed Jobs ({completedComputeJobs.length})</div>
+                  {completedComputeJobs.slice(-5).reverse().map((job) => {
+                    const parts = (job.requestHash || '').split(':');
+                    const jobRuntime = parts[1] || 'unknown';
+                    const jobCode = parts.slice(6).join(':') || '';
+                    return (
+                      <div key={job.id} className="bg-white/[0.03] border border-white/10 rounded-lg p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-[#7a7468] font-mono">{job.id}</span>
+                          <span className="text-[10px] text-green-400 px-2 py-0.5 rounded bg-green-400/10">{job.status}</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-[10px] text-[#7a7468] font-semibold">Runtime: {jobRuntime}</div>
+                          <div className="text-[10px] text-[#7a7468] font-mono truncate">Code: {jobCode.slice(0, 80)}</div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-[10px] text-[#00e5ff] font-semibold">Output</div>
+                          <div className="text-xs text-[#e8e2d8] whitespace-pre-wrap break-words font-mono bg-black/30 rounded p-2">{job.responseHash}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>;

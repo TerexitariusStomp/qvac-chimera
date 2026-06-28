@@ -81,7 +81,7 @@ def enableProguardInReleaseBuilds = (findProperty('android.enableProguardInRelea
 def jscFlavor = 'org.webkit:android-jsc:+'
 
 android {
-    ndkVersion rootProject.ext.ndkVersion
+    ndkVersion "27.2.12479018"
 
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
@@ -89,7 +89,7 @@ android {
     namespace 'io.chimera.mobile'
     defaultConfig {
         applicationId 'io.chimera.mobile'
-        minSdkVersion rootProject.ext.minSdkVersion
+        minSdkVersion 29
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 10022
         versionName "1.0.22"
