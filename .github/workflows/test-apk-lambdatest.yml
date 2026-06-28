@@ -32,7 +32,7 @@ jobs:
           withAssets.sort(key=lambda r: r['created_at'], reverse=True)
           for rel in withAssets:
             for a in rel['assets']:
-              if 'armeabi' in a['name'].lower() and a['name'].endswith('.apk') and 'debug' not in a['name'].lower():
+              if 'x86_64' in a['name'].lower() and a['name'].endswith('.apk') and 'debug' not in a['name'].lower():
                 print(a['browser_download_url'])
                 sys.exit(0)
           for rel in withAssets:
@@ -53,9 +53,8 @@ jobs:
           LT_ACCESS_KEY: ${{ secrets.LAMBDATEST_ACCESS_KEY }}
         run: |
           RESPONSE=$(curl -s -u "$LT_USERNAME:$LT_ACCESS_KEY" \
-            -X POST "https://manual-api.lambdatest.com/app/upload/realDevice" \
+            -X POST "https://manual-api.lambdatest.com/app/upload/virtualDevice" \
             -F "appFile=@chimera.apk" \
-            -F "type=android" \
             -F "name=chimera.apk")
           echo "Upload response: $RESPONSE"
           APP_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('app_url') or d.get('app_id') or '')")
