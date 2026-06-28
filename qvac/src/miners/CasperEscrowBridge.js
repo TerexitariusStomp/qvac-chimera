@@ -427,34 +427,88 @@ export class CasperEscrowBridge {
   }
 
   async _handleComputeJob(orderId) {
-    // Parse: COMPUTE:runtime:code
-    const firstColon = orderId.indexOf(':');
-    const secondColon = orderId.indexOf(':', firstColon + 1);
-    const runtime = orderId.slice(firstColon + 1, secondColon > 0 ? secondColon : orderId.length);
-    const code = secondColon > 0 ? orderId.slice(secondColon + 1) : '';
+    // Parse: COMPUTE:runtime:cpuCores:ramMb:gpu:timeoutSec:code
+    const parts = orderId.split(':');
+    const runtime = parts[1] || 'shell';
+    const cpuCores = parts[2] || '1';
+    const ramMb = parts[3] || '512';
+    const gpu = parts[4] === '1';
+    const timeoutSec = parseInt(parts[5] || '30', 10);
+    const code = parts.slice(6).join(':') || '';
 
-    this.logger.info(`Compute job: runtime=${runtime}, code=${code.slice(0, 80)}`);
+    this.logger.info(`Compute job: runtime=${runtime}, cpu=${cpuCores}, ram=${ramMb}MB, gpu=${gpu}, timeout=${timeoutSec}s, code=${code.slice(0, 80)}`);
 
-    // Execute shell commands safely (read-only, no network)
-    let output = '';
+    const timeoutMs = Math.min(timeoutSec * 1000, 120000);
+    let stdout = '';
+    let stderr = '';
+    let exitCode = 0;
+
     try {
-      if (runtime === 'shell' || runtime === 'wasm') {
+      if (runtime === 'shell') {
         const { execSync } = await import('child_process');
-        // Only allow safe, non-destructive commands
-        const safeCode = code.replace(/[;&|`$()]/g, ' ').slice(0, 500);
-        output = execSync(`echo '${safeCode.replace(/'/g, '')}' 2>&1 || true`, {
-          timeout: 10000,
-          encoding: 'utf8',
-          maxBuffer: 1024 * 100,
-        }).trim();
+        try {
+          stdout = execSync(code, {
+            timeout: timeoutMs,
+            encoding: 'utf8',
+            maxBuffer: 1024 * 512,
+            killSignal: 'SIGKILL',
+          }).trim();
+        } catch (execErr) {
+          stdout = (execErr.stdout || '').trim();
+          stderr = (execErr.stderr || '').trim();
+          exitCode = execErr.status || 1;
+        }
+      } else if (runtime === 'wasm') {
+        // Try running as a shell command that invokes a wasm runtime
+        const { execSync } = await import('child_process');
+        try {
+          stdout = execSync(code, {
+            timeout: timeoutMs,
+            encoding: 'utf8',
+            maxBuffer: 1024 * 512,
+            killSignal: 'SIGKILL',
+          }).trim();
+        } catch (execErr) {
+          stdout = (execErr.stdout || '').trim();
+          stderr = (execErr.stderr || '').trim();
+          exitCode = execErr.status || 1;
+        }
+      } else if (runtime === 'docker') {
+        // Docker execution — run in a container with resource limits
+        const { execSync } = await import('child_process');
+        const dockerCmd = `docker run --rm --memory=${ramMb}m --cpus=${cpuCores} --network=none --timeout=${timeoutSec}m alpine:latest sh -c '${code.replace(/'/g, "'\\''")}'`;
+        try {
+          stdout = execSync(dockerCmd, {
+            timeout: timeoutMs + 10000,
+            encoding: 'utf8',
+            maxBuffer: 1024 * 512,
+            killSignal: 'SIGKILL',
+          }).trim();
+        } catch (execErr) {
+          stdout = (execErr.stdout || '').trim();
+          stderr = (execErr.stderr || '').trim();
+          exitCode = execErr.status || 1;
+        }
       } else {
-        output = `Compute job received. Runtime: ${runtime}, Code: ${code.slice(0, 100)}. Execution simulated.`;
+        stdout = `Unsupported runtime: ${runtime}`;
+        exitCode = 1;
       }
     } catch (e) {
-      output = `Compute result for runtime=${runtime}: ${code.slice(0, 100)} (execution completed with output: ${e.message})`;
+      stderr = e.message;
+      exitCode = 1;
     }
 
-    return output || `Compute completed for: ${code.slice(0, 100)}`;
+    // Build structured output
+    const result = [
+      `exit_code=${exitCode}`,
+      `stdout:\n${stdout.slice(0, 2000)}`,
+    ];
+    if (stderr) {
+      result.push(`stderr:\n${stderr.slice(0, 500)}`);
+    }
+    result.push(`\n[resources: ${cpuCores} CPU, ${ramMb}MB RAM, gpu=${gpu}, timeout=${timeoutSec}s]`);
+
+    return result.join('\n');
   }
 
   async _handleBandwidthJob(orderId) {
