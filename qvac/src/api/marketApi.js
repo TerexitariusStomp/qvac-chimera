@@ -51,7 +51,7 @@ async function getDictionaryItem(contractHash, dictName, dictKey) {
   return dictRes.result?.stored_value?.CLValue?.parsed ?? null;
 }
 
-function buildDeploy(publicKey, contractHash, entryPoint, argsMap, payment = '10000000000') {
+function buildDeploy(publicKey, contractHash, entryPoint, argsMap, payment = '50000000000') {
   const args = Args.fromMap(argsMap);
   const contractHashObj = ContractHash.newContract(contractHash);
   const storedContract = new StoredContractByHash(contractHashObj, entryPoint, args);
