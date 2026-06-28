@@ -19,6 +19,7 @@ export {
   EarnidleProvider,
   AkashProvider,
   TargonProvider,
+  CasperProvider,
   KeyringManager,
   WalletSetup,
 } from './miners/index.js';

@@ -17,6 +17,7 @@ import { CessProvider } from './miners/CessProvider.js';
 import { EarnidleProvider } from './miners/EarnidleProvider.js';
 import { AkashProvider } from './miners/AkashProvider.js';
 import { TargonProvider } from './miners/TargonProvider.js';
+import { CasperProvider } from './miners/CasperProvider.js';
 import { KeyringManager } from './miners/KeyringManager.js';
 import { WalletSetup } from './miners/WalletSetup.js';
 
@@ -148,6 +149,7 @@ export class ChimeraSDK {
    * Keyring-referenced providers (Akash, Targon):
    *   keys live in OS keyring / user-owned config file; SDK only holds the name/path.
    * Earnidle: uses only a public wallet address for payouts.
+   * Casper: relay-only mode — private key lives on your relay server, SDK sends unsigned payloads.
    */
   async _initExternalProviders() {
     // CESS storage node (Docker-based, no local keys in SDK)
@@ -198,6 +200,22 @@ export class ChimeraSDK {
       logger.info(`[${this.appName}] Targon provider ready`);
     } catch (err) {
       logger.warn(`[${this.appName}] Targon provider init failed: ${err.message}`);
+    }
+
+    // Casper escrow bridge (relay-only mode, private key on relay server)
+    try {
+      const casper = new CasperProvider({
+        relayUrl: this._config?.casper?.relayUrl || null,
+        relayToken: this._config?.casper?.relayToken || null,
+        providerAccountHash: this._config?.casper?.providerAccountHash || null,
+        rpcUrl: this._config?.casper?.rpcUrl || null,
+        inferenceLayer: this.nodeManager?.inferenceLayer || null,
+      });
+      await casper.init();
+      this.externalProviders.push(casper);
+      logger.info(`[${this.appName}] Casper escrow provider ready (relay mode)`);
+    } catch (err) {
+      logger.warn(`[${this.appName}] Casper provider init failed: ${err.message}`);
     }
 
     // IDLE Inference Network worker (public wallet address only, no private keys)

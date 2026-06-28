@@ -13,5 +13,6 @@ export { CessProvider } from './CessProvider.js';
 export { EarnidleProvider } from './EarnidleProvider.js';
 export { AkashProvider } from './AkashProvider.js';
 export { TargonProvider } from './TargonProvider.js';
+export { CasperProvider } from './CasperProvider.js';
 export { KeyringManager } from './KeyringManager.js';
 export { WalletSetup } from './WalletSetup.js';
