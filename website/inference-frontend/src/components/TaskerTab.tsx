@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import EntryPointCard from './EntryPointCard';
 import { Button, Input, TextArea, StarRating } from './ui';
-import { Send, Brain, HardDrive, Cpu, Wifi, Star, Gavel, AlertTriangle, Trash2, CheckCircle } from 'lucide-react';
+import { Send, Brain, HardDrive, Cpu, Wifi, Star, Gavel, AlertTriangle, Trash2, CheckCircle, Download } from 'lucide-react';
 import * as sdk from 'casper-js-sdk';
 import { CONTRACTS, getContractNamedKeys, queryDictionary, callEntryPointWithWallet } from '../casper-client';
 import { createKlerosDispute, hasEthereumWallet, SUBCOURT_IDS } from '../kleros-client';
@@ -451,6 +451,95 @@ export default function TaskerTab({ provider, publicKeyHex, accountHash, onTx }:
                 <div className="space-y-1 mt-3 border-t border-white/10 pt-3">
                   <div className="text-xs font-semibold text-[#7a7468]">Pending File Uploads</div>
                   {jobs.filter(j => j.state < 3 && j.requestHash?.startsWith('STORAGE:FILE:')).slice(0, 5).map((job) => (
+                    <div key={job.id} className="flex items-center justify-between text-xs bg-white/[0.02] rounded p-2 overflow-hidden">
+                      <span className="font-mono text-[10px] text-[#7a7468] truncate flex-1 mr-2">{job.requestHash || job.id}</span>
+                      <span className="text-[#00e5ff] shrink-0">{job.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>;
+          }}
+        </EntryPointCard>
+        )}
+
+        {resource === 'storage' && (
+        <EntryPointCard title="Retrieve File" contract="EscrowVault" contractHash={CONTRACTS.escrowVault} provider={provider} publicKeyHex={publicKeyHex} onTx={onTx}>
+          {() => {
+            const [amount, setAmount] = useState('1');
+            const [spaceName, setSpaceName] = useState('');
+            const [fileHash, setFileHash] = useState('');
+            const amountMotes = Math.floor(parseFloat(amount || '0') * 1e9).toString();
+            const completedFiles = jobs.filter(j => j.state >= 3 && j.responseHash && j.requestHash?.startsWith('STORAGE:FILE:'));
+            const handleSubmit = async (e: any) => {
+              e.preventDefault();
+              if (!canSign || !spaceName.trim() || !fileHash.trim()) return;
+              const consumerHash = sdk.PublicKey.fromHex(publicKeyHex).accountHash();
+              const zeroHash = new Uint8Array(32);
+              const orderId = `STORAGE:RETRIEVE:${spaceName.trim()}:${fileHash.trim()}`;
+              const result = await callEntryPointWithWallet(provider, publicKeyHex, CONTRACTS.escrowVault, 'create_job', {
+                consumer: sdk.CLValue.newCLByteArray(consumerHash.toBytes()),
+                provider: sdk.CLValue.newCLByteArray(zeroHash),
+                amount: sdk.CLValue.newCLUInt512(amountMotes),
+                provider_fee_bps: sdk.CLValue.newCLUint64('0'),
+                order_id: sdk.CLValue.newCLString(orderId),
+              });
+              if (result.deployHash) {
+                onTx({ id: Date.now().toString(), deployHash: result.deployHash, entryPoint: 'create_job', contract: 'EscrowVault', status: result.error ? 'error' : 'pending', error: result.error });
+              }
+            };
+            const retrieveResults = jobs.filter(j => j.state >= 3 && j.responseHash && j.requestHash?.startsWith('STORAGE:RETRIEVE:'));
+            return <div className="space-y-3">
+              <form onSubmit={handleSubmit} className="space-y-2">
+                <div className="text-xs text-muted-foreground flex items-center gap-1"><Download className="h-3 w-3 text-[#00e5ff]" />Retrieve a previously stored file from a provider. Enter the space name and file hash from the storage proof.</div>
+                {completedFiles.length > 0 && (
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Select Stored File</label>
+                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                      {completedFiles.map((f) => {
+                        const parts = (f.requestHash || '').split(':');
+                        const name = parts[2] || '';
+                        const hash = parts[3] || '';
+                        return (
+                          <button key={f.id} type="button"
+                            onClick={() => { setSpaceName(name); setFileHash(hash); }}
+                            className={`text-[10px] px-2 py-1 rounded font-mono truncate max-w-[200px] ${spaceName === name && fileHash === hash ? 'bg-[#00e5ff]/20 text-[#00e5ff]' : 'bg-white/5 text-[#7a7468] hover:bg-white/10'}`}>
+                            {name}/{hash.slice(0, 12)}...
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <Input label="Storage Space Name" value={spaceName} onChange={setSpaceName} placeholder="e.g. my photos" />
+                <Input label="File Hash" value={fileHash} onChange={setFileHash} placeholder="SHA-256 hash from storage proof" />
+                <Input label="Funds (CSPR)" value={amount} onChange={setAmount} />
+                <Button type="submit" disabled={!canSign || !spaceName.trim() || !fileHash.trim()} className="w-full"><Download className="h-4 w-4 mr-1" />Retrieve File</Button>
+              </form>
+              {retrieveResults.length > 0 && (
+                <div className="space-y-2 mt-3 border-t border-white/10 pt-3">
+                  <div className="text-xs font-semibold text-[#00e5ff] flex items-center gap-1"><CheckCircle className="h-3 w-3" />Retrieved Files</div>
+                  {retrieveResults.slice(-5).reverse().map((job) => (
+                    <div key={job.id} className="bg-white/[0.03] border border-white/10 rounded-lg p-3 space-y-2">
+                      {job.requestHash && (
+                        <div className="space-y-1">
+                          <div className="text-[10px] text-[#7a7468] font-semibold">Request</div>
+                          <div className="text-xs text-[#e8e2d8] whitespace-pre-wrap break-words">{job.requestHash}</div>
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        <div className="text-[10px] text-[#00e5ff] font-semibold">File Data</div>
+                        <div className="text-xs text-[#e8e2d8] whitespace-pre-wrap break-words">{job.responseHash}</div>
+                      </div>
+                      <div className="text-[10px] text-[#7a7468]">Status: {job.status}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {jobs.length > 0 && jobs.filter(j => j.state < 3 && j.requestHash?.startsWith('STORAGE:RETRIEVE:')).length > 0 && (
+                <div className="space-y-1 mt-3 border-t border-white/10 pt-3">
+                  <div className="text-xs font-semibold text-[#7a7468]">Pending Retrievals</div>
+                  {jobs.filter(j => j.state < 3 && j.requestHash?.startsWith('STORAGE:RETRIEVE:')).slice(0, 5).map((job) => (
                     <div key={job.id} className="flex items-center justify-between text-xs bg-white/[0.02] rounded p-2 overflow-hidden">
                       <span className="font-mono text-[10px] text-[#7a7468] truncate flex-1 mr-2">{job.requestHash || job.id}</span>
                       <span className="text-[#00e5ff] shrink-0">{job.status}</span>

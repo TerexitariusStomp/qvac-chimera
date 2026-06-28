@@ -384,7 +384,7 @@ export class CasperEscrowBridge {
   }
 
   async _handleStorageJob(orderId) {
-    // Parse: STORAGE:ALLOC:spaceName:sizeMb  or  STORAGE:FILE:spaceName:fileHash:sizeMb
+    // Parse: STORAGE:ALLOC:spaceName:sizeMb  |  STORAGE:FILE:spaceName:fileHash:sizeMb  |  STORAGE:RETRIEVE:spaceName:fileHash
     const parts = orderId.split(':');
     const subType = parts[1] || 'ALLOC';
     const spaceName = parts[2] || 'unknown';
@@ -397,6 +397,24 @@ export class CasperEscrowBridge {
       const proof = this.computeHash(`${spaceName}:${fileHash}:${this.providerAccountHash}:${Date.now()}`);
       const storagePath = `/tmp/chimera-storage/${spaceName}/${fileHash.slice(0, 16)}`;
       return `File stored. Space: ${spaceName}, Hash: ${fileHash.slice(0, 32)}..., Size: ${sizeMb}, Proof: ${proof.slice(0, 32)}..., Path: ${storagePath}`;
+    }
+
+    if (subType === 'RETRIEVE') {
+      const fileHash = parts[3] || '';
+      this.logger.info(`Storage RETRIEVE job: space=${spaceName}, hash=${fileHash.slice(0, 16)}`);
+
+      const storagePath = `/tmp/chimera-storage/${spaceName}/${fileHash.slice(0, 16)}`;
+      try {
+        const fs = await import('fs');
+        if (fs.existsSync(storagePath)) {
+          const data = fs.readFileSync(storagePath, 'utf8');
+          return `File retrieved. Space: ${spaceName}, Hash: ${fileHash.slice(0, 32)}..., Path: ${storagePath}, Data: ${data.slice(0, 500)}`;
+        }
+        // File not on this provider — return metadata from proof
+        return `File not found on this provider. Space: ${spaceName}, Hash: ${fileHash.slice(0, 32)}..., Expected path: ${storagePath}`;
+      } catch (e) {
+        return `Retrieval error for ${spaceName}/${fileHash.slice(0, 16)}: ${e.message}`;
+      }
     }
 
     // ALLOC
