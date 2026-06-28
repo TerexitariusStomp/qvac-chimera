@@ -27,14 +27,14 @@ function detectGpuArchitecture() {
     const output = execSync('nvidia-smi -q', { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] });
     if (output.includes('H100') || output.includes('H200')) return 'HOPPER';
     if (output.includes('B100') || output.includes('B200')) return 'BLACKWELL';
-    return 'GPU'; // generic GPU
+    return 'GPU';
   } catch { return null; }
 }
 
 export class TargonProvider {
   constructor(opts = {}) {
     this.configPath = null;
-    this.gpuMode = opts.gpuMode ?? hasNvidiaGpu(); // auto-detect unless overridden
+    this.gpuMode = opts.gpuMode ?? hasNvidiaGpu();
     this.gpuArch = opts.gpuArch ?? detectGpuArchitecture();
     this.nodeType = opts.nodeType ?? (this.gpuMode ? (this.gpuArch || 'GPU') : 'CPU');
     this.process = null;
@@ -57,7 +57,6 @@ export class TargonProvider {
         TARGON_SKIP_GPU_CHECK: this.gpuMode ? '0' : '1'
       };
 
-      // For CPU mode use targon-cli (miner binary); for GPU use tvm/install
       const binary = this.gpuMode ? path.join(TARGON_DIR, 'tvm', 'install') : TARGON_CLI;
       const args = this.gpuMode
         ? ['-node-type', this.nodeType, '-output', `/tmp/targon-${this.nodeType.toLowerCase()}-report.json`]

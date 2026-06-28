@@ -3,9 +3,9 @@ import { Logger } from '../core/Logger.js';
 /**
  * SdkProviderMiner — wraps an SDK provider (@chimera/sdk) into the QVAC MinerManager interface.
  *
- * This allows SDK providers (Akash, Targon, BTFS, ZCN, IncomeGenerator,
- * CashPilot, CESS, BTT AI Miner) to appear in the desktop app alongside
- * native QVAC miners (Chutes, Fortytwo, Earnidle, Routstr, Casper, etc.).
+ * This allows SDK providers (CESS, BTT AI Miner, Golem, Anyone Protocol,
+ * Mysterium, Earnidle) to appear in the desktop app alongside
+ * native QVAC miners (Chutes, Fortytwo, Routstr, Casper, etc.).
  */
 export class SdkProviderMiner {
   constructor(name, ProviderClass, config = {}, inferenceLayer = null, evmAddress = null) {

@@ -21,7 +21,7 @@ export class AkashProvider {
     this.keyName = null;
     this.kubeconfig = null;
     this.akashNode = opts.akashNode || 'https://rpc.akashnet.net:443';
-    this.gpuMode = opts.gpuMode ?? hasNvidiaGpu(); // auto-detect unless overridden
+    this.gpuMode = opts.gpuMode ?? hasNvidiaGpu();
     this.process = null;
     this.running = false;
     this.logs = [];
@@ -66,7 +66,6 @@ export class AkashProvider {
         this.running = false;
       });
 
-      // Give it 3s to see if it crashes immediately
       setTimeout(() => {
         if (this.process && !this.process.killed) {
           resolve({ success: true, pid: this.process.pid, provider: 'akash' });

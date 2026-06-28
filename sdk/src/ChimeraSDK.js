@@ -9,15 +9,14 @@ import { NodeManager } from '../../qvac/src/core/NodeManager.js';
 import { Logger } from '../../qvac/src/core/Logger.js';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { BtfsProvider } from './miners/BtfsProvider.js';
-import { ZcnProvider } from './miners/ZcnProvider.js';
 import { BttAiMinerProvider } from './miners/BttAiMinerProvider.js';
 import { GolemProvider } from './miners/GolemProvider.js';
 import { AnyoneProtocolProvider } from './miners/AnyoneProtocolProvider.js';
 import { MysteriumProvider } from './miners/MysteriumProvider.js';
+import { CessProvider } from './miners/CessProvider.js';
+import { EarnidleProvider } from './miners/EarnidleProvider.js';
 import { AkashProvider } from './miners/AkashProvider.js';
 import { TargonProvider } from './miners/TargonProvider.js';
-import { CessProvider } from './miners/CessProvider.js';
 import { KeyringManager } from './miners/KeyringManager.js';
 import { WalletSetup } from './miners/WalletSetup.js';
 
@@ -82,8 +81,7 @@ export class ChimeraSDK {
     this.nodeManager = new NodeManager(this._config);
     await this.nodeManager.initialize();
 
-    // Auto-setup external providers (Akash, Targon)
-    // Keys are NEVER stored in the SDK — we only reference OS-level keyring names.
+    // Auto-setup external providers (all untrusted-safe, no private keys on machine)
     await this._initExternalProviders();
 
     logger.info(`[${this.appName}] Chimera SDK initialized`);
@@ -144,31 +142,14 @@ export class ChimeraSDK {
   /**
    * Initialize external providers.
    *
-   * Untrusted-safe providers (Golem, Anyone Protocol, Mysterium, BTT AI, CESS):
-   *   run in Docker with no local private keys in SDK.
-   * Self-managed providers (BTFS, ZCN, Akash, Targon):
-   *   require local wallet/keyring setup before use on untrusted hardware.
+   * All providers here are untrusted-safe — no private keys stored in the SDK.
+   * Docker-based providers (Golem, Anyone Protocol, Mysterium, CESS, BTT AI):
+   *   run in containers with no local key material.
+   * Keyring-referenced providers (Akash, Targon):
+   *   keys live in OS keyring / user-owned config file; SDK only holds the name/path.
+   * Earnidle: uses only a public wallet address for payouts.
    */
   async _initExternalProviders() {
-    // Storage providers — self-managed, require local wallet setup
-    try {
-      const btfs = new BtfsProvider();
-      await btfs.init();
-      this.externalProviders.push(btfs);
-      logger.info(`[${this.appName}] BTFS provider ready`);
-    } catch (err) {
-      logger.warn(`[${this.appName}] BTFS provider init failed: ${err.message}`);
-    }
-
-    try {
-      const zcn = new ZcnProvider();
-      await zcn.init();
-      this.externalProviders.push(zcn);
-      logger.info(`[${this.appName}] 0Chain blobber provider ready`);
-    } catch (err) {
-      logger.warn(`[${this.appName}] 0Chain provider init failed: ${err.message}`);
-    }
-
     // CESS storage node (Docker-based, no local keys in SDK)
     try {
       const cess = new CessProvider();
@@ -199,7 +180,7 @@ export class ChimeraSDK {
       logger.warn(`[${this.appName}] Golem init failed: ${err.message}`);
     }
 
-    // Akash provider node (self-managed, uses OS keyring)
+    // Akash provider node (keyring-referenced, SDK never sees mnemonic)
     try {
       const akash = new AkashProvider();
       await akash.init();
@@ -209,7 +190,7 @@ export class ChimeraSDK {
       logger.warn(`[${this.appName}] Akash provider init failed: ${err.message}`);
     }
 
-    // Targon compute provider (self-managed, uses local config file)
+    // Targon compute provider (keyring-referenced, SDK only passes config path)
     try {
       const targon = new TargonProvider();
       await targon.init();
@@ -217,6 +198,20 @@ export class ChimeraSDK {
       logger.info(`[${this.appName}] Targon provider ready`);
     } catch (err) {
       logger.warn(`[${this.appName}] Targon provider init failed: ${err.message}`);
+    }
+
+    // IDLE Inference Network worker (public wallet address only, no private keys)
+    try {
+      const earnidle = new EarnidleProvider({
+        walletAddress: this._config?.earnidle?.walletAddress || null,
+        model: this._config?.earnidle?.model || 'llama-3.2-1b-instruct',
+        inferenceLayer: this.nodeManager?.inferenceLayer || null,
+      });
+      await earnidle.init();
+      this.externalProviders.push(earnidle);
+      logger.info(`[${this.appName}] Earnidle inference provider ready`);
+    } catch (err) {
+      logger.warn(`[${this.appName}] Earnidle provider init failed: ${err.message}`);
     }
 
     // Onion routing relay (Docker-based, no keys)
@@ -252,7 +247,7 @@ export class ChimeraSDK {
     }
     await this.nodeManager.start();
 
-    // Start external providers (Akash, Targon)
+    // Start external providers
     const providerResults = [];
     for (const p of this.externalProviders) {
       try {
