@@ -102,6 +102,14 @@ export default function App() {
                 {tab.label}
               </a>
             ))}
+            <a href="/console.html"
+              className="rounded-md px-3 py-1.5 text-xs font-medium transition-colors hover:bg-white/5 hover:text-[#00e5ff] text-[#7a7468]">
+              Console
+            </a>
+            <a href="/rental.html"
+              className="rounded-md px-3 py-1.5 text-xs font-medium transition-colors hover:bg-white/5 hover:text-[#00e5ff] text-[#00e5ff]">
+              Rent GPU
+            </a>
           </nav>
           <div className="flex items-center gap-3">
             {isConnected ? (

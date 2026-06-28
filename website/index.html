@@ -130,8 +130,11 @@
     .hero-tag .dot{width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;animation:pulse 2s infinite}
     .hero h1{font-size:clamp(44px,7vw,80px);font-weight:800;line-height:1.05;letter-spacing:-.03em;margin-bottom:20px}
     .hero p{font-size:18px;color:#7a7468;max-width:560px;margin:0 auto 32px;line-height:1.7}
-    .hero-cta{padding:14px 32px;border-radius:12px;background:linear-gradient(135deg,#00e5ff,#a855f7);color:#000;font-size:15px;font-weight:700;transition:.2s;cursor:pointer;border:none}
+    .hero-cta{padding:14px 32px;border-radius:12px;background:linear-gradient(135deg,#00e5ff,#a855f7);color:#000;font-size:15px;font-weight:700;transition:.2s;cursor:pointer;border:none;display:inline-flex;align-items:center;justify-content:center}
     .hero-cta:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,229,255,.25)}
+    .hero-actions{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap}
+    .hero-cta-secondary{background:transparent;border:1px solid rgba(255,255,255,.12);color:#e8e2d8}
+    .hero-cta-secondary:hover{background:rgba(255,255,255,.06);transform:translateY(-2px);box-shadow:none}
 
     .section{padding:100px 0}
     .section-header{text-align:center;margin-bottom:56px}
@@ -265,7 +268,10 @@
   </div>
   <h1 class="gradient-text">Local AI apps<br>that earn when idle.</h1>
   <p>Run a QVAC inference node on any device. QVAK powers local AI. Mine tasks, earn revenue — all on your hardware.</p>
-  <button class="hero-cta" onclick="event.preventDefault(); autoDownload();">Download</button>
+  <div class="hero-actions">
+    <button class="hero-cta" onclick="event.preventDefault(); autoDownload();">Download</button>
+    <a href="rental.html" class="hero-cta hero-cta-secondary">Rent GPU</a>
+  </div>
 </section>
 
 <section class="section" id="features">
@@ -512,31 +518,35 @@
     }
     window._chimeraOS = os;
 
-    // Pre-fetch releases and cache for 5 minutes
-    window._chimeraReleases = null;
+    // Pre-fetch latest release and cache for 5 minutes
+    window._chimeraRelease = null;
     (async () => {
       try {
-        const cached = sessionStorage.getItem('chimeraReleases');
-        const cachedAt = sessionStorage.getItem('chimeraReleasesAt');
+        const cached = sessionStorage.getItem('chimeraRelease');
+        const cachedAt = sessionStorage.getItem('chimeraReleaseAt');
         const now = Date.now();
         if (cached && cachedAt && (now - parseInt(cachedAt, 10)) < 300_000) {
-          window._chimeraReleases = JSON.parse(cached);
+          window._chimeraRelease = JSON.parse(cached);
         } else {
-          // Fetch all releases, filter out empty ones, sort by date
+          // Fetch all releases, filter out empty ones, pick newest with assets
           const res = await fetch('https://api.github.com/repos/LocalChimera/localchimera/releases?per_page=20');
           if (res.ok) {
             const releases = await res.json();
+            // Sort by creation date descending, pick first with assets
             const withAssets = releases
               .filter(r => r.assets && r.assets.length > 0)
               .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-            window._chimeraReleases = withAssets;
-            sessionStorage.setItem('chimeraReleases', JSON.stringify(withAssets));
-            sessionStorage.setItem('chimeraReleasesAt', String(now));
-            // Show version in the note if OS was detected
-            const os = window._chimeraOS;
-            if (os && os !== 'unknown' && withAssets.length > 0) {
-              const note = document.getElementById('osNote');
-              if (note) note.textContent = 'Detected ' + os + ' — v' + withAssets[0].tag_name + '. Click to download.';
+            const data = withAssets[0] || null;
+            if (data) {
+              window._chimeraRelease = data;
+              sessionStorage.setItem('chimeraRelease', JSON.stringify(data));
+              sessionStorage.setItem('chimeraReleaseAt', String(now));
+              // Show version in the note if OS was detected
+              const os = window._chimeraOS;
+              if (os && os !== 'unknown') {
+                const note = document.getElementById('osNote');
+                if (note) note.textContent = 'Detected ' + os + ' — v' + data.tag_name + '. Click to download.';
+              }
             }
           }
         }
@@ -645,36 +655,32 @@
     };
 
     try {
-      let releases = window._chimeraReleases;
-      if (!releases) {
+      let data = window._chimeraRelease;
+      if (!data) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
         const res = await fetch('https://api.github.com/repos/LocalChimera/localchimera/releases?per_page=20', { signal: controller.signal });
         clearTimeout(timeout);
         if (!res.ok) { window.open(fallback, '_blank'); reset(); return; }
-        releases = await res.json();
-        releases = releases
+        const releases = await res.json();
+        const withAssets = releases
           .filter(r => r.assets && r.assets.length > 0)
           .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        window._chimeraReleases = releases;
+        data = withAssets[0] || null;
+        if (data) {
+          window._chimeraRelease = data;
+          sessionStorage.setItem('chimeraRelease', JSON.stringify(data));
+          sessionStorage.setItem('chimeraReleaseAt', String(Date.now()));
+        }
       }
 
-      if (!releases || !releases.length) {
+      if (!data || !data.assets) {
         window.open(fallback, '_blank');
         reset();
         return;
       }
 
-      // Search across releases for the first one that has a matching asset for this OS
-      let asset = null;
-      let releaseUsed = null;
-      for (const rel of releases) {
-        asset = pickAsset(rel.assets, os);
-        if (asset) {
-          releaseUsed = rel;
-          break;
-        }
-      }
+      const asset = pickAsset(data.assets, os);
       const downloadUrl = asset && asset.browser_download_url;
       if (downloadUrl) {
         // Trigger download via hidden <a> tag — no target=_blank so mobile stays on page
@@ -685,7 +691,7 @@
         a.click();
         document.body.removeChild(a);
 
-        if (osLabel) osLabel.textContent = 'Downloading ' + (releaseUsed ? releaseUsed.tag_name : '') + '...';
+        if (osLabel) osLabel.textContent = 'Downloading ' + (data ? data.tag_name : '') + '...';
         reset();
       } else {
         window.open(fallback, '_blank');
