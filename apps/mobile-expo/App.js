@@ -159,7 +159,14 @@ export default function App() {
   const handleWebViewMessage = async (event) => {
     try {
       const msg = JSON.parse(event.nativeEvent.data);
-      if (msg.type === 'bridge-ready') return;
+      if (msg.type === 'bridge-ready') {
+        console.log('Bridge ready from WebView');
+        return;
+      }
+      if (msg.type === 'console') {
+        console.log('WebView console:', msg.level, msg.args);
+        return;
+      }
 
       const { id, method, path, body } = msg;
       const query = path.includes('?') ? path.split('?')[1] : '';
@@ -216,6 +223,15 @@ export default function App() {
       };
 
       const originalFetch = window.fetch;
+      const originalConsoleLog = console.log;
+      const originalConsoleError = console.error;
+      const forwardLog = (level, args) => {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'console', level, args: Array.from(args).map(String) }));
+      };
+      console.log = function(...args) { forwardLog('log', args); return originalConsoleLog.apply(this, args); };
+      console.error = function(...args) { forwardLog('error', args); return originalConsoleError.apply(this, args); };
+      console.warn = function(...args) { forwardLog('warn', args); };
+
       const isApiCall = (url) => {
         if (typeof url !== 'string') return false;
         return url.startsWith('/api') || url.startsWith('http://localhost:3002/api');
