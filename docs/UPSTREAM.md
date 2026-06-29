@@ -15,13 +15,37 @@ This repo integrates and extends several open-source projects. This document tra
 
 ## Mining Networks
 
-| Project | Upstream Repo | How We Consume | Our Code | Update Method |
-|---|---|---|---|---|
-| **Cortensor** | `github.com/cortensor/installer` | Protocol integration | `qvac/src/miners/CortensorMiner.js` | Check upstream installer for protocol changes |
-| **Chutes** | `github.com/chutesai/chutes-miner` | Protocol integration | `qvac/src/miners/ChutesMiner.js` | Check upstream miner for API changes |
-| **Routstr** | `github.com/routstr` | Protocol integration | `qvac/src/miners/RoutstrMiner.js` | Check upstream for NIP-60 / Cashu changes |
-| **Fortytwo** | `github.com/Fortytwo-Network` | Protocol integration | `qvac/src/miners/FortytwoMiner.js` | Check upstream for console app changes |
-| **Earnidle** | `earnidle.com` | Protocol integration | `qvac/src/miners/EarnidleMiner.js` | Monitor website + protocol docs |
+All tasking networks are consumed as **forked Git submodules** under `upstream/`. This keeps their larger contributor bases driving the code while giving Localchimera a stable, reviewable integration point. To fork them into your own GitHub org and repoint `.gitmodules`, run:
+
+```bash
+./scripts/fork-upstream.sh <your-github-username-or-org>
+```
+
+| Project | Upstream Repo | Submodule Path | How We Consume | Included in SDK? | Notes |
+|---|---|---|---|---|---|
+| **Cortensor** | `github.com/cortensor/installer` | `upstream/cortensor-installer` | Protocol integration (`qvac/src/miners/CortensorMiner.js`) | Node only | Requires local `cortensord` key registration |
+| **Chutes** | `github.com/chutesai/chutes-miner` | `upstream/chutes-miner` | Protocol integration (`qvac/src/miners/ChutesMiner.js`) | ✅ | Untrusted-hardware-safe (relay holds keys) |
+| **Routstr** | `github.com/routstr/routstr-core` | `upstream/routstr-core` | Protocol integration (`qvac/src/miners/RoutstrMiner.js`) | ✅ | Nostr/Cashu, no local keys |
+| **Fortytwo** | `github.com/Fortytwo-Network/fortytwo-console-app` | `upstream/fortytwo-console-app` | Protocol integration (`qvac/src/miners/FortytwoMiner.js`) | Node only | Requires `~/.fortytwo/identity.json` secret key |
+| **Earnidle** | `earnidle.com` (no public repo) | n/a | Protocol integration (`sdk/src/miners/EarnidleProvider.js` + `qvac/src/miners/EarnidleMiner.js`) | ✅ | Public wallet address only |
+| **BTT AI** | `github.com/BTT-AI-labs/miner-cli` | `upstream/btt-ai-miner` | Docker / GPU miner (`sdk/src/miners/BttAiMinerProvider.js`) | ✅ | Proxy mode, no local wallet |
+| **Golem** | `github.com/golemcloud/golem-runner` | `upstream/golem-runner` | Docker provider (`sdk/src/miners/GolemProvider.js`) | ✅ | Payout address only |
+| **Anyone Protocol** | `github.com/anyone-protocol/anyone` | `upstream/anyone-protocol` | Docker relay (`sdk/src/miners/AnyoneProtocolProvider.js`) | ✅ | No keys required |
+| **Mysterium** | `github.com/mysteriumnetwork/node` | `upstream/mysterium-node` | Docker VPN node (`sdk/src/miners/MysteriumProvider.js`) | ✅ | No keys required |
+| **CESS** | `github.com/CESSProject/cess-nodeadm` | `upstream/cess-nodeadm` | Docker storage node (`sdk/src/miners/CessProvider.js`) | ❌ | Requires local node wallet/config |
+| **Akash** | `github.com/akash-network/provider` | `upstream/akash-provider` | Provider node binary | ❌ | Requires local key / kubeconfig |
+| **Targon** | `github.com/manifold-inc/targon` | `upstream/targon` | Miner binary | ❌ | Requires local hotkey config |
+| **ZCN / 0Chain** | `github.com/0chain/blobber` | `upstream/zcn-blobber` | Blobber node | ❌ | Requires `~/.zcn` config |
+| **BTFS** | `github.com/bittorrent/go-btfs` | `upstream/btfs` | Basis for Chimera Storage Hub | ❌ | Reference implementation for decentralized storage; provider wallet managed by the SDK relay |
+| **Income Generator** | `github.com/XternA/income-generator` | `upstream/income-generator` | Bandwidth orchestrator | ❌ | Per-app credentials |
+| **CashPilot** | `github.com/GeiserX/CashPilot` | `upstream/cashpilot` | DePIN manager | ❌ | Per-service credentials |
+| **Salad** | `github.com/saladtechnologies/salad-cloud-job-queue-worker` | `upstream/salad-job-queue-worker` | Job queue worker | ❌ | Salad account credentials |
+| **Heurist** | `github.com/heurist-network/miner-release` | `upstream/heurist-miner` | GPU/LLM miner | ❌ | Local identity wallet |
+| **Lium** | `github.com/Datura-ai/lium` | `upstream/lium` | GPU marketplace CLI | ❌ | Bittensor wallet / API key |
+| **Nosana** | `github.com/nosana-ci/nosana-kit` | `upstream/nosana-kit` | Solana compute kit | ❌ | Solana wallet / API key |
+| **ByteLeap** | `github.com/byteleapai/byteleap-Miner` | `upstream/byteleap-miner` | Bittensor GPU miner | ❌ | Bittensor wallet |
+
+**Excluded from the SDK** (kept as forked node submodules only): CESS, Akash, Targon, ZCN, BTFS, Income Generator, CashPilot, Salad, Heurist, Lium, Nosana, ByteLeap. They are excluded because they require a private key, wallet mnemonic, or self-managed config on the local machine and cannot safely run on untrusted hardware. See `docs/RELAY_COMPATIBILITY.md` for the per-network analysis of why a relay/worker split is not supported by their upstream protocols.
 
 ## Wiki / Knowledge Base
 
@@ -38,6 +62,14 @@ This repo integrates and extends several open-source projects. This document tra
 |---|---|---|---|---|
 | **repo-to-markdown** | `github.com/puter-apps/repo-to-markdown` | **Git submodule** — vendored in `upstream/repo-to-markdown/` | `qvac/src/web/repoToMarkdownAdapter.js` + `repoDigest.js` | `git submodule update --remote upstream/repo-to-markdown` |
 | **markitdown** | `github.com/microsoft/markitdown` | **Git submodule** — installed via `requirements.txt` (`-e ../upstream/markitdown/packages/markitdown`) | `qvac/src/web/server.js` (`handleConvertToMd`) | `git submodule update --remote upstream/markitdown` |
+
+## Fully Homomorphic Encryption (FHE)
+
+| Project | Upstream Repo | Submodule Path | How We Consume | Notes |
+|---|---|---|---|---|
+| **Zama Concrete** | `github.com/zama-ai/concrete` | `upstream/concrete` | Reference design and upstream API model | Rust FHE compiler; tracked for API patterns and future migration |
+
+The FHE runtime shipped in this repo uses **Microsoft SEAL** (`node-seal`) because it provides a portable WebAssembly build that works in both the browser (tasker) and Node.js (provider). The Concrete submodule is maintained as the upstream reference so the abstraction can be migrated to native Concrete once a compatible JS/WASM binding or Node build is available.
 
 ## Git Submodules (Upstream Code We Use Directly)
 
@@ -78,6 +110,37 @@ git submodule update --remote upstream/knowledge-catalog
 | `volcengine/OpenViking` | `upstream/openviking/` | `qvac/src/llmwiki/openviking_bridge.py` — memory storage via HTTP client |
 | `redimp/otterwiki` | `upstream/otterwiki/` | `qvac/src/llmwiki/otterwiki_bridge.py` — git-backed wiki storage |
 | `GoogleCloudPlatform/knowledge-catalog` | `upstream/knowledge-catalog/` | Reference OKF spec at `upstream/knowledge-catalog/okf/SPEC.md` |
+| `zama-ai/concrete` | `upstream/concrete/` | Reference design and upstream API model for FHE layer |
+| **Tasking network forks** | `upstream/*` | Docker or binary builds; protocol wrappers in `qvac/src/miners/` and `sdk/src/miners/` |
+
+Tasking-network submodules are listed in `.gitmodules` and forked into the Localchimera GitHub org via `scripts/fork-upstream.sh`. After forking, update them with:
+
+```bash
+# Update all forked tasking submodules to the latest upstream commits
+git submodule update --remote --merge \
+  upstream/cortensor-installer \
+  upstream/chutes-miner \
+  upstream/routstr-core \
+  upstream/fortytwo-console-app \
+  upstream/btt-ai-miner \
+  upstream/golem-runner \
+  upstream/anyone-protocol \
+  upstream/mysterium-node \
+  upstream/cess-nodeadm \
+  upstream/akash-provider \
+  upstream/targon \
+  upstream/zcn-blobber \
+  upstream/btfs \
+  upstream/income-generator \
+  upstream/cashpilot \
+  upstream/salad-job-queue-worker \
+  upstream/heurist-miner \
+  upstream/lium \
+  upstream/nosana-kit \
+  upstream/byteleap-miner
+# Commit the updated submodule refs
+git add upstream/ && git commit -m "chore: bump tasking network forks"
+```
 
 ## Updating npm Dependencies
 
@@ -143,21 +206,23 @@ npx cap sync
 
 ## Updating Mining Networks
 
-Each mining network integration is custom code that speaks the network's protocol. To keep up to date:
+Each mining network is vendored as a forked Git submodule. The protocol integration layer in `qvac/src/miners/` and `sdk/src/miners/` is thin by design, so upstream improvements can be pulled in with minimal Localchimera changes.
+
+### Workflow
+
+1. **Fork once**: `scripts/fork-upstream.sh <owner>` forks every listed network repo into your GitHub org and repoints `.gitmodules`.
+2. **Pull upstream regularly**: `git submodule update --remote --merge upstream/<name>` merges the latest upstream commits into your fork's submodule pointer.
+3. **Check protocol changes**: review upstream releases and diffs before updating the submodule pointer.
+4. **Test the miner**: run the relevant Localchimera miner in isolation after bumping a submodule.
+5. **Commit**: include the upstream release/change reference in the commit message.
+
+### Example: bump Chutes
 
 ```bash
-# Check upstream repos for protocol changes
-curl -s https://api.github.com/repos/cortensor/installer/releases/latest | jq -r '.tag_name'
-curl -s https://api.github.com/repos/chutesai/chutes-miner/releases/latest | jq -r '.tag_name'
-curl -s https://api.github.com/repos/routstr/releases/latest | jq -r '.tag_name'
-curl -s https://api.github.com/repos/Fortytwo-Network/releases/latest | jq -r '.tag_name'
+git submodule update --remote --merge upstream/chutes-miner
+cd qvac
+npm test -- --grep ChutesMiner
 ```
-
-When upstream changes their protocol or API:
-1. Review the upstream release notes
-2. Update the corresponding miner in `qvac/src/miners/`
-3. Test the miner in isolation
-4. Commit with reference to the upstream change
 
 ## Updating Wiki / Knowledge Base
 

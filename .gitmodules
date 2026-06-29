@@ -16,12 +16,38 @@
 [submodule "upstream/knowledge-catalog"]
 	path = upstream/knowledge-catalog
 	url = https://github.com/GoogleCloudPlatform/knowledge-catalog.git
+
+# Tasking / mining network forks — run scripts/fork-upstream.sh to repoint to your GitHub forks
+[submodule "upstream/cortensor-installer"]
+	path = upstream/cortensor-installer
+	url = https://github.com/cortensor/installer.git
+[submodule "upstream/chutes-miner"]
+	path = upstream/chutes-miner
+	url = https://github.com/chutesai/chutes-miner.git
+[submodule "upstream/routstr-core"]
+	path = upstream/routstr-core
+	url = https://github.com/routstr/routstr-core.git
+[submodule "upstream/fortytwo-console-app"]
+	path = upstream/fortytwo-console-app
+	url = https://github.com/Fortytwo-Network/fortytwo-console-app.git
+[submodule "upstream/btt-ai-miner"]
+	path = upstream/btt-ai-miner
+	url = https://github.com/BTT-AI-labs/miner-cli.git
+[submodule "upstream/golem-runner"]
+	path = upstream/golem-runner
+	url = https://github.com/golemcloud/golem-runner.git
+[submodule "upstream/anyone-protocol"]
+	path = upstream/anyone-protocol
+	url = https://github.com/anyone-protocol/anyone.git
+[submodule "upstream/mysterium-node"]
+	path = upstream/mysterium-node
+	url = https://github.com/mysteriumnetwork/node.git
+[submodule "upstream/cess-nodeadm"]
+	path = upstream/cess-nodeadm
+	url = https://github.com/CESSProject/cess-nodeadm.git
 [submodule "upstream/akash-provider"]
 	path = upstream/akash-provider
 	url = https://github.com/akash-network/provider
-[submodule "upstream/salad-job-queue-worker"]
-	path = upstream/salad-job-queue-worker
-	url = https://github.com/saladtechnologies/salad-cloud-job-queue-worker
 [submodule "upstream/targon"]
 	path = upstream/targon
 	url = https://github.com/manifold-inc/targon
@@ -37,9 +63,21 @@
 [submodule "upstream/cashpilot"]
 	path = upstream/cashpilot
 	url = https://github.com/GeiserX/CashPilot.git
-[submodule "upstream/cess-nodeadm"]
-	path = upstream/cess-nodeadm
-	url = https://github.com/CESSProject/cess-nodeadm.git
-[submodule "upstream/btt-ai-miner"]
-	path = upstream/btt-ai-miner
-	url = https://github.com/BTT-AI-labs/miner-cli.git
+[submodule "upstream/salad-job-queue-worker"]
+	path = upstream/salad-job-queue-worker
+	url = https://github.com/saladtechnologies/salad-cloud-job-queue-worker
+[submodule "upstream/heurist-miner"]
+	path = upstream/heurist-miner
+	url = https://github.com/heurist-network/miner-release.git
+[submodule "upstream/lium"]
+	path = upstream/lium
+	url = https://github.com/Datura-ai/lium.git
+[submodule "upstream/nosana-kit"]
+	path = upstream/nosana-kit
+	url = https://github.com/nosana-ci/nosana-kit.git
+[submodule "upstream/byteleap-miner"]
+	path = upstream/byteleap-miner
+	url = https://github.com/byteleapai/byteleap-Miner.git
+[submodule "upstream/concrete"]
+	path = upstream/concrete
+	url = https://github.com/zama-ai/concrete.git
