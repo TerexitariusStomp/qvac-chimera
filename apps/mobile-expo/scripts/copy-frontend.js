@@ -3,6 +3,7 @@ const path = require('path');
 
 const srcDir = path.join(__dirname, '../../../qvac/frontend/dist');
 const destDir = path.join(__dirname, '../assets/frontend');
+const androidAssetsDir = path.join(__dirname, '../android/app/src/main/assets/frontend');
 
 function copyRecursive(src, dest) {
   if (!fs.existsSync(dest)) {
@@ -26,5 +27,13 @@ if (!fs.existsSync(srcDir)) {
   process.exit(1);
 }
 
+// Copy to Expo assets (used by Metro/expo-asset require)
 copyRecursive(srcDir, destDir);
 console.log('Frontend assets copied to:', destDir);
+
+// If Android native assets directory exists (after prebuild), also copy there
+// so the files are included in the APK regardless of Metro asset bundling.
+if (fs.existsSync(path.dirname(androidAssetsDir))) {
+  copyRecursive(srcDir, androidAssetsDir);
+  console.log('Frontend assets copied to Android assets:', androidAssetsDir);
+}

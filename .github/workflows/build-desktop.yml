@@ -317,6 +317,8 @@ jobs:
         run: |
           cd apps/mobile-expo
           node_modules/.bin/expo prebuild --platform android --clean
+      - name: Copy frontend to Android native assets
+        run: node apps/mobile-expo/scripts/copy-frontend.js
       - name: Set Gradle Java home, heap, and downgrade Compose compiler
         run: |
           echo "org.gradle.java.home=$JAVA_HOME" >> apps/mobile-expo/android/gradle.properties

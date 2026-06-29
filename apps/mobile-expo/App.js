@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
 
-const FRONTEND_URL = null;
+const FRONTEND_URL = 'file:///android_asset/frontend/index.html';
 const LLAMA_MODEL = 'LLAMA_3_2_1B_INST_Q4_0';
 const WIKI_DIR = FileSystem.documentDirectory + 'llmwiki/';
 
@@ -20,8 +19,7 @@ export default function App() {
     async function init() {
       try {
         await FileSystem.makeDirectoryAsync(WIKI_DIR, { intermediates: true }).catch(() => {});
-        const asset = await Asset.fromModule(require('./assets/frontend/index.html'));
-        setFrontendUri(asset.localUri || asset.uri);
+        setFrontendUri(FRONTEND_URL);
 
         const { loadModel } = await import('@qvac/sdk');
         setModelStatus('downloading model...');
