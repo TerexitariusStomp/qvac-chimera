@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "generate-docs": "python3 scripts/generate_docs.py",
+    "dev": "npm run generate-docs && vite",
+    "build": "npm run generate-docs && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

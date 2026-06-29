@@ -55,3 +55,7 @@ viral_frames/
 
 # Git
 **/.git
+
+# Generated frontend docs (source is the READMEs; regenerate with npm run generate-docs)
+qvac/frontend/public/docs/LOCALCHIMERA.md
+qvac/frontend/public/docs/LOCALCHIMERA.html
