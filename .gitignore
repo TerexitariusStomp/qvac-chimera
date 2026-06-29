@@ -6,12 +6,24 @@
 **/dist/
 **/build/
 **/target/
+broadcast/
+cache/
+out/
+
+# Foundry / inference generated libs (tracked submodules are exceptions)
+lib/encrypted-types/
+lib/fhevm-sdk/
+lib/privy-types/
 
 # Logs & data
 **/logs/
 **/*.log
 **/data/
 **/llmwiki-data/
+
+# Website build outputs
+website/inference/
+website-new/inference/
 
 # Media
 **/media/
