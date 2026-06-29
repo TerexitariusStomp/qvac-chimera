@@ -209,6 +209,9 @@ export default function App() {
       window.__bridgeActive = true;
       window.__bridgeFetch = true;
       window.__bridgeResolvers = {};
+      console.log('[Bridge] Injected bridge script running');
+      console.log('[Bridge] document.getElementById(root):', document.getElementById('root'));
+      console.log('[Bridge] Scripts on page:', document.querySelectorAll('script').length);
       window.__bridgeResolve = function(id, data) {
         const cb = window.__bridgeResolvers[id];
         if (cb) cb(data);
@@ -260,6 +263,18 @@ export default function App() {
       };
 
       window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'bridge-ready' }));
+
+      // Check if React renders into root div
+      setTimeout(function() {
+        var root = document.getElementById('root');
+        console.log('[Bridge] After 2s, root innerHTML length:', root ? root.innerHTML.length : 'no root');
+        console.log('[Bridge] After 2s, root children:', root ? root.children.length : 'no root');
+        if (root && root.innerHTML.length > 0) {
+          console.log('[Bridge] React rendered successfully');
+        } else {
+          console.log('[Bridge] React did NOT render - root is empty');
+        }
+      }, 2000);
     })();
   `;
 
@@ -280,7 +295,7 @@ export default function App() {
         style={styles.webview}
         injectedJavaScript={injectedBridge}
         onMessage={handleWebViewMessage}
-        onLoad={() => setWebLoading(false)}
+        onLoad={() => { console.log('[App] WebView onLoad fired'); setWebLoading(false); }}
         onError={(e) => {
           console.error('WebView error:', e.nativeEvent);
           setWebLoading(false);
