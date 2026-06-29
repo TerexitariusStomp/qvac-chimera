@@ -34,6 +34,7 @@
     "priority": [
       "routstr",
       "chutes",
+      "btfs",
       "btt-ai",
       "golem",
       "anyone-protocol",
@@ -70,6 +71,10 @@
         "chutesHome": "~/.chutes",
         "endpoint": ""
       }
+    },
+    "btfs": {
+      "enabled": true,
+      "config": {}
     },
     "bttAi": {
       "enabled": true,
@@ -209,6 +214,16 @@
     "providerAccountHash": "",
     "relayUrl": "",
     "relayToken": ""
+  },
+  "btfs": {
+    "enabled": true,
+    "apiUrl": "http://127.0.0.1:5001",
+    "repoPath": "~/.btfs-chimera",
+    "rpcUrl": "https://node.testnet.casper.network/rpc",
+    "relayUrl": "",
+    "relayToken": "",
+    "protocolWallet": "",
+    "providerAccountHash": ""
   },
   "storage": {
     "path": "./data",

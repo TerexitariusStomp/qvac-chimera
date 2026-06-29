@@ -141,7 +141,7 @@ export class ChimeraSDK {
         repoPath: this._config?.btfs?.repoPath || null,
         relayUrl: this._config?.btfs?.relayUrl || this._config?.casper?.relayUrl || null,
         relayToken: this._config?.btfs?.relayToken || this._config?.casper?.relayToken || null,
-        providerAccountHash: this._config?.btfs?.providerAccountHash || this._config?.casper?.providerAccountHash || null,
+        providerAccountHash: this._config?.btfs?.protocolWallet || this._config?.btfs?.providerAccountHash || this._config?.casper?.providerAccountHash || null,
         rpcUrl: this._config?.btfs?.rpcUrl || this._config?.casper?.rpcUrl || null,
         signer: this.signer,
       });
