@@ -50,7 +50,7 @@ case "$OS" in
 
   CYGWIN*|MINGW*|MSYS*)
     echo "Detected Windows. Please run the PowerShell installer:"
-    echo "  irm https://raw.githubusercontent.com/$REPO/main/install-windows.ps1 | iex"
+    echo "  irm https://raw.githubusercontent.com/$REPO/main/apps/install/install-windows.ps1 | iex"
     exit 1
     ;;
 
