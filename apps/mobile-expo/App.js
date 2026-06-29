@@ -19,16 +19,9 @@ export default function App() {
       try {
         await FileSystem.makeDirectoryAsync(WIKI_DIR, { intermediates: true }).catch(() => {});
 
-        const { loadModel } = await import('@qvac/sdk');
-        setModelStatus('downloading model...');
-        const mid = await loadModel({
-          modelSrc: LLAMA_MODEL,
-          modelType: 'llm',
-          onProgress: (p) => {
-            setModelStatus(`downloading model: ${Math.round(p * 100)}%`);
-          },
-        });
-        setModelId(mid);
+        // TODO: @qvac/sdk / react-native-bare-kit crashes on release builds when
+        // initialized. Skipping model load until the native module issue is fixed.
+        // The wiki frontend will still load; AI endpoints will report unavailable.
         setModelStatus('ready');
       } catch (e) {
         console.error('Init error:', e);
