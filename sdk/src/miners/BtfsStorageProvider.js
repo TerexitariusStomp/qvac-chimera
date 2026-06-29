@@ -11,10 +11,9 @@
  *     is disabled so the daemon never signs cheques or storage contracts.
  *   - The only key material on the provider is the libp2p peer identity
  *     needed to join the BTFS swarm. It does not hold funds.
- *   - All payments and on-chain proofs are handled by a trusted relay.
- *     The provider only sends a signed-less storage attestation; the relay
- *     verifies the file is reachable from the provider and then submits the
- *     blockchain transaction using its own key.
+ *   - On-chain proof submission is done via a trusted relay OR a signer
+ *     callback supplied by the app (e.g. a Privy wallet bridge). The provider
+ *     never holds the blockchain private key.
  */
 
 import { spawn, execSync } from 'child_process';
@@ -27,7 +26,6 @@ import { Logger } from '../../../qvac/src/core/Logger.js';
 const logger = new Logger('BtfsStorageProvider');
 const DEFAULT_RPC_URL = 'https://node.testnet.casper.network/rpc';
 const DEFAULT_CHAIN_NAME = 'casper-test';
-
 const DEFAULT_REPO = path.join(os.homedir(), '.btfs-chimera');
 const BTFS_IMAGE = 'bittorrent/go-btfs:latest';
 
@@ -68,9 +66,7 @@ async function getDictionaryItem(rpcUrl, contractHash, dictName, dictKey) {
   if (!stateRootHash) return null;
   const dictRes = await rpcCall(rpcUrl, 'state_get_dictionary_item', {
     state_root_hash: stateRootHash,
-    dictionary_identifier: {
-      URef: { seed_uref: dictUref, dictionary_item_key: dictKey },
-    },
+    dictionary_identifier: { URef: { seed_uref: dictUref, dictionary_item_key: dictKey } },
   });
   return dictRes.result?.stored_value?.CLValue?.parsed ?? null;
 }
@@ -90,15 +86,14 @@ export class BtfsStorageProvider {
 
     this.rpcUrl = opts.rpcUrl || process.env.CASPER_RPC_URL || DEFAULT_RPC_URL;
     this.chainName = opts.chainName || process.env.CASPER_CHAIN_NAME || DEFAULT_CHAIN_NAME;
-    this.contracts = opts.contracts || {
-      escrowVault: 'b8e8b7e087ec4ad7afcdc30460d39d5b6a8249875cd1e2da0716b89d710fda40',
-    };
+    this.contracts = opts.contracts || { escrowVault: 'b8e8b7e087ec4ad7afcdc30460d39d5b6a8249875cd1e2da0716b89d710fda40' };
     this.relayUrl = opts.relayUrl || process.env.CASPER_RELAY_URL || '';
     this.relayToken = opts.relayToken || process.env.CASPER_RELAY_TOKEN || '';
     this.providerAccountHash = opts.providerAccountHash || process.env.CASPER_PROVIDER_ACCOUNT_HASH || '';
+    this.signer = opts.signer || null;
 
     if (opts.providerKeyPem || process.env.CASPER_PROVIDER_KEY_PEM || process.env.CASPER_PROVIDER_KEY_PEM_PATH) {
-      throw new Error('BtfsStorageProvider is relay-only. Do not pass providerKeyPem.');
+      throw new Error('BtfsStorageProvider is relay/signer-only. Do not pass providerKeyPem.');
     }
   }
 
@@ -108,13 +103,13 @@ export class BtfsStorageProvider {
     } catch {
       throw new Error('Docker not available. BTFS provider requires Docker to run the go-btfs daemon.');
     }
-    if (!this.relayUrl) {
-      throw new Error('CASPER_RELAY_URL is required. The relay holds the private key and submits on-chain proofs.');
+    if (!this.relayUrl && !this.signer) {
+      throw new Error('CASPER_RELAY_URL or a signer callback is required. The provider never holds the private key.');
     }
     if (!this.providerAccountHash) {
       throw new Error('CASPER_PROVIDER_ACCOUNT_HASH is required (public, safe to share).');
     }
-    logger.info('BTFS walletless storage provider initialized (relay mode)');
+    logger.info('BTFS walletless storage provider initialized');
   }
 
   async start() {
@@ -125,7 +120,7 @@ export class BtfsStorageProvider {
     logger.info('Starting BTFS storage job polling...');
     await this._pollJobs();
     this.pollInterval = setInterval(() => this._pollJobs(), 15000).unref();
-    return { success: true, provider: 'btfs-storage', mode: 'relay' };
+    return { success: true, provider: 'btfs-storage', mode: this.signer ? 'signer' : 'relay' };
   }
 
   async stop() {
@@ -157,22 +152,15 @@ export class BtfsStorageProvider {
     };
   }
 
-  getClient() {
-    return this.client;
-  }
+  getClient() { return this.client; }
 
   async storeFile(file, { wrapWithDirectory = false } = {}) {
     const result = await this.client.add(file, { pin: true, wrapWithDirectory });
     return result.Hash || result.hash || result.Cid || result.cid;
   }
 
-  async pinByCid(cid) {
-    return this.client.pinAdd(cid);
-  }
-
-  async retrieveFile(cid) {
-    return this.client.cat(cid);
-  }
+  async pinByCid(cid) { return this.client.pinAdd(cid); }
+  async retrieveFile(cid) { return this.client.cat(cid); }
 
   async _ensureDaemon() {
     const online = await this.client.isOnline();
@@ -195,7 +183,6 @@ export class BtfsStorageProvider {
         '--enable-storage-host=false',
       ]);
       this.running = true;
-
       const appendLog = (level, data) => {
         const line = data.toString().trim();
         if (!line) return;
@@ -204,11 +191,7 @@ export class BtfsStorageProvider {
       };
       this.process.stdout.on('data', d => appendLog('info', d));
       this.process.stderr.on('data', d => appendLog('error', d));
-      this.process.on('exit', code => {
-        this.daemonReady = false;
-        logger.warn(`BTFS daemon exited with code ${code}`);
-      });
-
+      this.process.on('exit', code => { this.daemonReady = false; logger.warn(`BTFS daemon exited with code ${code}`); });
       const wait = async () => {
         for (let i = 0; i < 30; i++) {
           try {
@@ -217,9 +200,7 @@ export class BtfsStorageProvider {
             logger.info('BTFS daemon online');
             resolve({ success: true, mode: 'spawned' });
             return;
-          } catch {
-            await new Promise(r => setTimeout(r, 1000));
-          }
+          } catch { await new Promise(r => setTimeout(r, 1000)); }
         }
         resolve({ success: false, error: 'BTFS daemon did not become reachable within 30s' });
       };
@@ -249,9 +230,7 @@ export class BtfsStorageProvider {
         if (this.processedJobs.has(jobId)) continue;
         await this._handleJob(jobId);
       }
-    } catch (e) {
-      logger.error(`BTFS poll error: ${e.message}`);
-    }
+    } catch (e) { logger.error(`BTFS poll error: ${e.message}`); }
   }
 
   async _handleJob(jobId) {
@@ -275,70 +254,54 @@ export class BtfsStorageProvider {
       const isZeroProvider = providerHex === '0'.repeat(64);
       const tt = Number(taskTypeVal) || 0;
       const id = String(requestHash || jobId);
-
       if (!(id.startsWith('STORAGE:') || tt === 1)) {
         logger.debug(`Job ${jobId} is not a storage job, skipping`);
         return;
       }
-
       if (!isZeroProvider && providerHex !== this.providerAccountHash) {
         logger.debug(`Storage job ${jobId} not assigned to us`);
         return;
       }
-
       const responseHash = await this._processStorageJob(id);
-      await this._sendViaRelay(this.contracts.escrowVault, 'provider_complete', {
+      await this._sendToChain(this.contracts.escrowVault, 'provider_complete', {
         job_id: { cl_type: 'String', bytes: Buffer.from(jobId).toString('hex') },
         response_hash: { cl_type: 'String', bytes: Buffer.from(responseHash).toString('hex') },
       });
-      logger.info(`Storage job ${jobId} completed and relayed, CID: ${responseHash}`);
+      logger.info(`Storage job ${jobId} completed and reported, CID: ${responseHash}`);
       this.processedJobs.add(jobId);
       this._monitorJobSettlement(jobId);
-    } catch (e) {
-      logger.error(`Failed to handle storage job ${jobId}: ${e.message}`);
-    } finally {
-      this.inProgressJobs.delete(jobId);
-    }
+    } catch (e) { logger.error(`Failed to handle storage job ${jobId}: ${e.message}`); }
+    finally { this.inProgressJobs.delete(jobId); }
   }
 
   async _processStorageJob(orderId) {
     const parts = orderId.split(':');
     const subType = parts[1] || 'ALLOC';
     const spaceName = parts[2] || 'unknown';
-
     if (subType === 'FILE' || subType === 'PIN') {
       const cid = parts[3] || '';
       if (!cid) throw new Error('Storage job missing CID');
       await this.pinByCid(cid);
       try {
         const blob = await this.retrieveFile(cid);
-        const size = blob.size;
-        return `PIN:${cid}:${spaceName}:${size}`;
-      } catch {
-        return `PIN:${cid}:${spaceName}:0`;
-      }
+        return `PIN:${cid}:${spaceName}:${blob.size}`;
+      } catch { return `PIN:${cid}:${spaceName}:0`; }
     }
-
     if (subType === 'RETRIEVE') {
       const cid = parts[3] || '';
       if (!cid) throw new Error('Storage job missing CID');
       const blob = await this.retrieveFile(cid);
       return `RETRIEVE:${cid}:${spaceName}:${blob.size}`;
     }
-
     const sizeMb = parts[3] || '0';
     return `ALLOC:${spaceName}:${sizeMb}`;
   }
 
-  async _sendViaRelay(contractHash, entryPoint, argsMap, payment = '5000000000') {
+  async _sendToChain(contractHash, entryPoint, argsMap, payment = '5000000000') {
     const ALLOWED_ENTRY_POINTS = new Set(['provider_ack', 'provider_complete', 'claim_payment']);
     const MAX_PAYMENT = '5000000000';
-    if (!ALLOWED_ENTRY_POINTS.has(entryPoint)) {
-      throw new Error(`Blocked: entry point "${entryPoint}" is not in the whitelist`);
-    }
-    if (BigInt(payment) > BigInt(MAX_PAYMENT)) {
-      throw new Error(`Blocked: payment ${payment} exceeds max ${MAX_PAYMENT}`);
-    }
+    if (!ALLOWED_ENTRY_POINTS.has(entryPoint)) throw new Error(`Blocked: entry point "${entryPoint}" is not in the whitelist`);
+    if (BigInt(payment) > BigInt(MAX_PAYMENT)) throw new Error(`Blocked: payment ${payment} exceeds max ${MAX_PAYMENT}`);
     const payload = {
       contractHash,
       entryPoint,
@@ -347,6 +310,11 @@ export class BtfsStorageProvider {
       rpcUrl: this.rpcUrl,
       chainName: this.chainName,
     };
+    if (this.signer) {
+      const result = await this.signer(payload);
+      if (result.error) throw new Error(`Signer error: ${result.error}`);
+      return result.deployHash;
+    }
     const res = await fetch(this.relayUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.relayToken}` },
@@ -372,16 +340,14 @@ export class BtfsStorageProvider {
         const state = stateVal !== null ? Number(stateVal) : null;
         if (state === null) return;
         if (state === STATE.SETTLED || state === STATE.CONSUMER_CONFIRM) {
-          await this._sendViaRelay(this.contracts.escrowVault, 'claim_payment', {
+          await this._sendToChain(this.contracts.escrowVault, 'claim_payment', {
             job_id: { cl_type: 'String', bytes: Buffer.from(jobId).toString('hex') },
           });
           return;
         }
         if (state === STATE.REFUNDED || state === STATE.DISPUTED) return;
         if (attempts < maxAttempts) setTimeout(check, 15000).unref();
-      } catch (e) {
-        if (attempts < maxAttempts) setTimeout(check, 15000).unref();
-      }
+      } catch (e) { if (attempts < maxAttempts) setTimeout(check, 15000).unref(); }
     };
     setTimeout(check, 15000).unref();
   }

@@ -42,6 +42,7 @@ export class ChimeraSDK {
     this.appDeveloperEVM = opts.appDeveloperEVM || null;
     this.revenueSplit = opts.revenueSplit || { machineOwner: 0.70, appDeveloper: 0.30 };
     this.configPath = opts.configPath || path.join(process.cwd(), 'config.json');
+    this.signer = opts.signer || null;
     this.userConsent = false;
     this.nodeManager = null;
     this._config = null;
@@ -142,6 +143,7 @@ export class ChimeraSDK {
         relayToken: this._config?.btfs?.relayToken || this._config?.casper?.relayToken || null,
         providerAccountHash: this._config?.btfs?.providerAccountHash || this._config?.casper?.providerAccountHash || null,
         rpcUrl: this._config?.btfs?.rpcUrl || this._config?.casper?.rpcUrl || null,
+        signer: this.signer,
       });
       await btfsProvider.init();
       this.externalProviders.push(btfsProvider);

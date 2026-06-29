@@ -30,7 +30,6 @@ Only tasking networks that are **safe on untrusted hardware** are integrated. Th
 | **Golem** | `github.com/golemcloud/golem-runner` | `upstream/golem-runner` | Docker provider (`sdk/src/miners/GolemProvider.js`) | ✅ | Payout address only |
 | **Anyone Protocol** | `github.com/anyone-protocol/anyone` | `upstream/anyone-protocol` | Docker relay (`sdk/src/miners/AnyoneProtocolProvider.js`) | ✅ | No keys required |
 | **Mysterium** | `github.com/mysteriumnetwork/node` | `upstream/mysterium-node` | Docker VPN node (`sdk/src/miners/MysteriumProvider.js`) | ✅ | No keys required |
-| **BTFS** | `github.com/bittorrent/go-btfs` | `upstream/btfs` | Walletless storage network (`sdk/src/miners/BtfsStorageProvider.js`) | ✅ | No BTT wallet on device; storage-host mode disabled; payments on Casper |
 
 Networks that require a private key, wallet mnemonic, account credentials, or self-managed config on the local machine have been removed from the codebase entirely because they cannot safely run on untrusted hardware and their upstream protocols do not support a relay/worker split. The old analysis is archived in `docs/RELAY_COMPATIBILITY.md` for reference.
 
