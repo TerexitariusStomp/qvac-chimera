@@ -12,6 +12,7 @@ export function Button({ children, onClick, disabled, variant = 'primary', class
     secondary: 'bg-white/[0.06] border border-white/10 text-[#e8e2d8] hover:bg-white/10',
     danger: 'bg-red-600 text-white hover:bg-red-700',
     outline: 'border border-white/10 bg-transparent text-[#e8e2d8] hover:bg-white/5',
+    pink: 'bg-gradient-to-br from-[#ec4899] to-[#f43f5e] text-white font-semibold hover:opacity-90',
   };
   return (
     <button type={type} onClick={onClick} disabled={disabled}
@@ -21,12 +22,16 @@ export function Button({ children, onClick, disabled, variant = 'primary', class
   );
 }
 
-export function Input({ label, value, onChange, placeholder, type = 'text' }: any) {
+export function Input({ label, value, onChange, placeholder, type = 'text', className, disabled, readOnly, variant = 'dark' }: any) {
+  const inputVariants: any = {
+    dark: 'border-input bg-transparent text-[#e8e2d8] placeholder:text-muted-foreground',
+    light: 'border-slate-200 bg-white text-slate-800 placeholder:text-slate-400',
+  };
   return (
-    <div className="space-y-1">
-      <label className="text-sm font-medium">{label}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+    <div className={cn('space-y-1', className)}>
+      {label && <label className="text-sm font-medium">{label}</label>}
+      <input type={type} value={value} onChange={(e) => onChange && onChange(e.target.value)} placeholder={placeholder} disabled={disabled} readOnly={readOnly}
+        className={cn('flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50', inputVariants[variant])} />
     </div>
   );
 }

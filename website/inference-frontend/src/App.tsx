@@ -13,9 +13,12 @@ import CompletedTab from './components/CompletedTab';
 import TaskerTab from './components/TaskerTab';
 import ProviderTab from './components/ProviderTab';
 import StorageHub from './components/StorageHub';
+import NetworkHealthTab from './components/NetworkHealthTab';
+import ReferralsTab from './components/ReferralsTab';
+import DeployTab from './components/DeployTab';
 import type { TxRecord } from './types';
 
-type Page = 'market' | 'machines' | 'completed' | 'tasker' | 'provider' | 'storage';
+type Page = 'market' | 'machines' | 'completed' | 'tasker' | 'provider' | 'storage' | 'network' | 'referrals' | 'deploy';
 
 export default function App() {
   const [provider, setProvider] = useState<any>(null);
@@ -73,6 +76,9 @@ export default function App() {
               { id: 'tasker', label: 'Tasker' },
               { id: 'provider', label: 'Provider' },
               { id: 'storage', label: 'Storage' },
+              { id: 'network', label: 'Network' },
+              { id: 'referrals', label: 'Referrals' },
+              { id: 'deploy', label: 'Deploy' },
               { id: 'market', label: 'Market' },
               { id: 'machines', label: 'Machines' },
               { id: 'completed', label: 'Completed' },
@@ -144,6 +150,18 @@ export default function App() {
 
         {page === 'storage' && (
           <StorageHub provider={provider} publicKeyHex={publicKeyHex} accountHash={accountHash} onTx={updateTx} />
+        )}
+
+        {page === 'network' && (
+          <NetworkHealthTab accountHash={accountHash} />
+        )}
+
+        {page === 'referrals' && (
+          <ReferralsTab accountHash={accountHash} />
+        )}
+
+        {page === 'deploy' && (
+          <DeployTab accountHash={accountHash} />
         )}
       </main>
 

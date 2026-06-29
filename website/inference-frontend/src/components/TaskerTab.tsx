@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import EntryPointCard from './EntryPointCard';
 import { Button, Input, TextArea, StarRating } from './ui';
@@ -216,8 +216,15 @@ export default function TaskerTab({ provider, publicKeyHex, accountHash, onTx }:
         {resource === 'inference' && (
         <EntryPointCard title="Inference" contract="InferenceMarket" contractHash={CONTRACTS.inferenceMarket} provider={provider} publicKeyHex={publicKeyHex} onTx={onTx}>
           {() => {
+            const [mode, setMode] = useState<'single' | 'stream'>('single');
             const [amount, setAmount] = useState('10');
             const [promptText, setPromptText] = useState('');
+            const [streamModel, setStreamModel] = useState('llama3.2');
+            const [streamEndpoint, setStreamEndpoint] = useState('http://localhost:11434/api/generate');
+            const [streamPrompt, setStreamPrompt] = useState('');
+            const [streamOutput, setStreamOutput] = useState('');
+            const [streaming, setStreaming] = useState(false);
+            const streamAbort = useRef<AbortController | null>(null);
             const amountMotes = Math.floor(parseFloat(amount || '0') * 1e9).toString();
             const handleSubmit = async (e: any) => {
               e.preventDefault();
@@ -236,15 +243,88 @@ export default function TaskerTab({ provider, publicKeyHex, accountHash, onTx }:
                 onTx({ id: Date.now().toString(), deployHash: result.deployHash, entryPoint: 'create_job', contract: 'InferenceMarket', status: result.error ? 'error' : 'pending', error: result.error });
               }
             };
+            const handleStream = async (e: any) => {
+              e.preventDefault();
+              if (!streamPrompt.trim() || streaming) return;
+              setStreamOutput('');
+              setStreaming(true);
+              const abort = new AbortController();
+              streamAbort.current = abort;
+              try {
+                const res = await fetch(streamEndpoint, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ model: streamModel, prompt: streamPrompt.trim(), stream: true }),
+                  signal: abort.signal,
+                });
+                if (!res.ok || !res.body) throw new Error('Inference endpoint not reachable');
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  buffer += decoder.decode(value, { stream: true });
+                  const lines = buffer.split('\n');
+                  buffer = lines.pop() || '';
+                  for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                      const data = JSON.parse(line);
+                      if (data.response) setStreamOutput(prev => prev + data.response);
+                      if (data.done) break;
+                    } catch {}
+                  }
+                }
+              } catch (err: any) {
+                if (err.name !== 'AbortError') {
+                  setStreamOutput(prev => prev + '\n[Error: ' + (err.message || 'Stream failed') + ']');
+                }
+              } finally {
+                setStreaming(false);
+                streamAbort.current = null;
+              }
+            };
+            const stopStream = () => {
+              streamAbort.current?.abort();
+              streamAbort.current = null;
+              setStreaming(false);
+            };
             const completedJobs = jobs.filter(j => j.state >= 3 && j.responseHash && !j.requestHash?.startsWith('STORAGE:') && !j.requestHash?.startsWith('COMPUTE:') && !j.requestHash?.startsWith('BANDWIDTH:'));
             return <div className="space-y-3">
-              <form onSubmit={handleSubmit} className="space-y-2">
-                <div className="text-xs text-muted-foreground flex items-center gap-1"><Brain className="h-3 w-3 text-[#00e5ff]" />Submit a prompt for inference. Router auto-assigns provider and model.</div>
-                <TextArea label="Prompt" value={promptText} onChange={setPromptText} placeholder="Enter your inference prompt..." rows={3} />
-                <Input label="Funds (CSPR)" value={amount} onChange={setAmount} />
-                <Button type="submit" disabled={!canSign || !promptText.trim()} className="w-full"><Send className="h-4 w-4 mr-1" />Request Inference</Button>
-              </form>
-              {completedJobs.length > 0 && (
+              <div className="flex gap-2 mb-2">
+                <button type="button" onClick={() => setMode('single')} className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${mode === 'single' ? 'bg-[#00e5ff]/15 border border-[#00e5ff]/30 text-[#00e5ff]' : 'bg-white/[0.03] border border-white/10 text-[#7a7468] hover:bg-white/[0.06] hover:text-[#e8e2d8]'}`}>Single Task</button>
+                <button type="button" onClick={() => setMode('stream')} className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${mode === 'stream' ? 'bg-[#00e5ff]/15 border border-[#00e5ff]/30 text-[#00e5ff]' : 'bg-white/[0.03] border border-white/10 text-[#7a7468] hover:bg-white/[0.06] hover:text-[#e8e2d8]'}`}>Local Stream</button>
+              </div>
+              {mode === 'single' && (
+                <form onSubmit={handleSubmit} className="space-y-2">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1"><Brain className="h-3 w-3 text-[#00e5ff]" />Submit a prompt for inference. Router auto-assigns provider and model.</div>
+                  <TextArea label="Prompt" value={promptText} onChange={setPromptText} placeholder="Enter your inference prompt..." rows={3} />
+                  <Input label="Funds (CSPR)" value={amount} onChange={setAmount} />
+                  <Button type="submit" disabled={!canSign || !promptText.trim()} className="w-full"><Send className="h-4 w-4 mr-1" />Request Inference</Button>
+                </form>
+              )}
+              {mode === 'stream' && (
+                <form onSubmit={handleStream} className="space-y-2">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1"><Brain className="h-3 w-3 text-[#00e5ff]" />Stream from a local Ollama-compatible endpoint. No blockchain transaction.</div>
+                  <Input label="Endpoint" value={streamEndpoint} onChange={setStreamEndpoint} placeholder="http://localhost:11434/api/generate" />
+                  <Input label="Model" value={streamModel} onChange={setStreamModel} placeholder="llama3.2" />
+                  <TextArea label="Prompt" value={streamPrompt} onChange={setStreamPrompt} placeholder="Enter your streaming prompt..." rows={3} />
+                  <div className="flex gap-2">
+                    <Button type="submit" disabled={!streamPrompt.trim() || streaming} className="flex-1"><Send className="h-4 w-4 mr-1" />{streaming ? 'Streaming...' : 'Stream Inference'}</Button>
+                    {streaming && <Button type="button" onClick={stopStream} variant="danger" className="shrink-0">Stop</Button>}
+                  </div>
+                </form>
+              )}
+              {mode === 'stream' && (
+                <div className="space-y-1">
+                  <div className="text-[10px] text-[#7a7468] font-semibold">Stream Output</div>
+                  <div className="min-h-[120px] max-h-[300px] overflow-y-auto text-xs text-[#e8e2d8] whitespace-pre-wrap break-words font-mono bg-black/30 border border-white/10 rounded-lg p-3">
+                    {streamOutput || <span className="text-[#7a7468] italic">Response will appear here...</span>}
+                  </div>
+                </div>
+              )}
+              {mode === 'single' && completedJobs.length > 0 && (
                 <div className="space-y-2 mt-3 border-t border-white/10 pt-3">
                   <div className="text-xs font-semibold text-[#00e5ff] flex items-center gap-1"><CheckCircle className="h-3 w-3" />Inference Results</div>
                   {completedJobs.slice(-5).reverse().map((job) => (
@@ -264,7 +344,7 @@ export default function TaskerTab({ provider, publicKeyHex, accountHash, onTx }:
                   ))}
                 </div>
               )}
-              {jobs.length > 0 && jobs.filter(j => j.state < 3 && !j.requestHash?.startsWith('STORAGE:') && !j.requestHash?.startsWith('COMPUTE:') && !j.requestHash?.startsWith('BANDWIDTH:')).length > 0 && (
+              {mode === 'single' && jobs.length > 0 && jobs.filter(j => j.state < 3 && !j.requestHash?.startsWith('STORAGE:') && !j.requestHash?.startsWith('COMPUTE:') && !j.requestHash?.startsWith('BANDWIDTH:')).length > 0 && (
                 <div className="space-y-1 mt-3 border-t border-white/10 pt-3">
                   <div className="text-xs font-semibold text-[#7a7468]">Pending Jobs</div>
                   {jobs.filter(j => j.state < 3 && !j.requestHash?.startsWith('STORAGE:') && !j.requestHash?.startsWith('COMPUTE:') && !j.requestHash?.startsWith('BANDWIDTH:')).slice(0, 5).map((job) => (

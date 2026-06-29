@@ -79,6 +79,51 @@ async function detectMachineResources(): Promise<{
   return { cpuCores, ramGb, hasGpu, vramMb, gpuName, bandwidthMbps, platform };
 }
 
+function getUserLocation(): Promise<{ lat: number; lng: number }> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve({ lat: 37.7749, lng: -122.4194 });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve({ lat: 37.7749, lng: -122.4194 }),
+      { timeout: 5000 }
+    );
+  });
+}
+
+function project(lng: number, lat: number) {
+  return { x: ((lng + 180) / 360) * 1000, y: ((90 - lat) / 180) * 500 };
+}
+
+function StatCard({ title, value, subtitle }: { title: string; value: string; subtitle?: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 flex flex-col justify-between">
+      <div className="text-xs text-[#7a7468] uppercase tracking-wider">{title}</div>
+      <div className="mt-2">
+        <div className="text-2xl font-bold text-[#e8e2d8]">{value}</div>
+        {subtitle && <div className="text-xs text-[#7a7468] mt-1">{subtitle}</div>}
+      </div>
+    </div>
+  );
+}
+
+function UptimeBar({ pct }: { pct: number }) {
+  const blocks = 10;
+  const filled = Math.round((pct / 100) * blocks);
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex gap-0.5">
+        {Array.from({ length: blocks }).map((_, i) => (
+          <div key={i} className={`w-2 h-3 rounded-sm ${i < filled ? 'bg-emerald-500' : 'bg-white/10'}`} />
+        ))}
+      </div>
+      <span className="text-xs text-[#7a7468]">{pct.toFixed(2)}%</span>
+    </div>
+  );
+}
+
 function verifyClaim(actual: any, claimed: Record<string, any>, resource: string): VerifyResult {
   const results: VerifyResult['results'] = [];
   const tolerance = 0.1;
@@ -193,6 +238,8 @@ export default function ProviderTab({ provider, publicKeyHex, accountHash, onTx 
   const [files, setFiles] = useState<any[]>([]);
   const [agreements, setAgreements] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [machine, setMachine] = useState<{ cpuCores: number; ramGb: number; hasGpu: boolean; vramMb: number; gpuName: string; bandwidthMbps: number; platform: string } | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -258,8 +305,85 @@ export default function ProviderTab({ provider, publicKeyHex, accountHash, onTx 
     return () => clearInterval(id);
   }, [loadData]);
 
+  useEffect(() => {
+    let mounted = true;
+    detectMachineResources().then((m) => { if (mounted) setMachine(m); });
+    getUserLocation().then((loc) => { if (mounted) setLocation(loc); });
+    return () => { mounted = false; };
+  }, []);
+
+  const mapDot = location ? project(location.lng, location.lat) : null;
+
   return (
     <div className="space-y-6">
+      {/* NETWORK CAPACITY (Golem-inspired) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard title="Connected Providers" value="1" subtitle="this machine" />
+        <StatCard title="Compute Power" value={machine?.cpuCores ? `${machine.cpuCores} cores` : '—'} />
+        <StatCard title="Total Memory" value={machine?.ramGb ? `${machine.ramGb} GB` : '—'} />
+        <StatCard title="Network Activity" value={machine?.bandwidthMbps ? `${machine.bandwidthMbps} Mbps` : '—'} />
+      </div>
+
+      {/* PROVIDER MAP + LIST */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+          <h3 className="text-sm font-semibold text-[#e8e2d8] mb-3">Provider Location</h3>
+          <svg viewBox="0 0 1000 500" className="w-full h-auto rounded-lg border border-white/10 bg-[#030308]">
+            <g fill="#16161e">
+              <path d="M 60 80 Q 160 40 280 70 Q 320 100 300 160 Q 250 200 180 190 Q 100 170 60 130 Z" />
+              <path d="M 200 220 Q 280 210 330 250 Q 320 360 260 400 Q 220 380 210 300 Z" />
+              <path d="M 420 90 Q 520 70 620 90 Q 700 110 720 160 Q 680 200 600 190 Q 520 180 460 160 Q 400 140 420 90 Z" />
+              <path d="M 720 110 Q 880 90 950 130 Q 960 200 900 240 Q 820 260 760 230 Q 710 190 720 110 Z" />
+              <path d="M 430 210 Q 540 200 560 260 Q 550 360 480 390 Q 420 360 430 280 Z" />
+              <path d="M 780 310 Q 900 300 930 340 Q 920 410 850 420 Q 780 400 780 340 Z" />
+            </g>
+            {mapDot && (
+              <circle cx={mapDot.x} cy={mapDot.y} r="6" fill="#00e5ff" className="animate-pulse">
+                <title>Your machine</title>
+              </circle>
+            )}
+          </svg>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 overflow-hidden">
+          <h3 className="text-sm font-semibold text-[#e8e2d8] mb-3">Providers</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead>
+                <tr className="border-b border-white/10 text-xs text-[#7a7468] uppercase tracking-wider">
+                  <th className="pb-2 font-medium">Provider</th>
+                  <th className="pb-2 font-medium">Hardware</th>
+                  <th className="pb-2 font-medium">Price</th>
+                  <th className="pb-2 font-medium">Reputation</th>
+                  <th className="pb-2 font-medium">Uptime</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-white/5">
+                  <td className="py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-[#00e5ff]/10 flex items-center justify-center text-[#00e5ff] text-xs font-bold">LC</div>
+                      <div>
+                        <div className="text-[#e8e2d8] font-medium">this machine</div>
+                        <div className="text-[10px] text-[#7a7468]">{machine?.platform || 'local'}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-3">
+                    <div className="space-y-1 text-xs">
+                      <div className="text-[#e8e2d8]">{machine?.cpuCores ? `${machine.cpuCores} CPU cores` : '—'}</div>
+                      <div className="text-[#7a7468]">{machine?.hasGpu ? (machine.gpuName || 'GPU available') : 'No GPU'}</div>
+                    </div>
+                  </td>
+                  <td className="py-3 text-[#e8e2d8]">$0.00 / hour</td>
+                  <td className="py-3 text-[#e8e2d8]">N/A</td>
+                  <td className="py-3"><UptimeBar pct={100} /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       {/* STEP 1: CATEGORY SELECTOR */}
       <div>
         <div className="text-xs text-[#7a7468] mb-3">Select a category to get started.</div>
