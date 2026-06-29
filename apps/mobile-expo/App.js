@@ -9,6 +9,7 @@ export default function App() {
   const [modelStatus, setModelStatus] = useState('idle');
   const [frontendUri, setFrontendUri] = useState(null);
   const [webError, setWebError] = useState(null);
+  const [webLoading, setWebLoading] = useState(true);
   const [modelId, setModelId] = useState(null);
   const [modelError, setModelError] = useState(null);
   const [walletAddress, setWalletAddress] = useState(null);
@@ -729,12 +730,12 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <Text style={{ color: "#00e5ff", fontSize: 20, textAlign: "center", paddingTop: 50 }}>LOCALCHIMERA HEADER</Text>
       <WebView
         ref={webViewRef}
         source={{ uri: frontendUri }}
         style={styles.webview}
         injectedJavaScript={injectedBridge}
+        onLoad={() => setWebLoading(false)}
         onMessage={handleWebViewMessage}
         javaScriptEnabled={true}
         domStorageEnabled={true}
@@ -746,10 +747,12 @@ export default function App() {
         allowsInlineMediaPlayback={true}
         onError={(e) => {
           console.error('WebView error:', e.nativeEvent);
+          setWebLoading(false);
           setWebError('WebView error: ' + (e.nativeEvent.description || 'unknown'));
         }}
         onHttpError={(e) => {
           console.error('WebView HTTP error:', e.nativeEvent);
+          setWebLoading(false);
           setWebError('HTTP ' + (e.nativeEvent.statusCode || 'error'));
         }}
         renderError={(errorName) => (
@@ -770,6 +773,12 @@ export default function App() {
           return true;
         }}
       />
+      {webLoading && (
+        <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#0a0a14", alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="large" color="#00e5ff" />
+          <Text style={styles.text}>Loading Chimera...</Text>
+        </View>
+      )}
     </View>
   );
 }

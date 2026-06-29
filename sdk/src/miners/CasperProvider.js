@@ -14,7 +14,7 @@
  */
 
 import { createHash } from 'crypto';
-import { Logger } from '../../qvac/src/core/Logger.js';
+import { Logger } from '../../../qvac/src/core/Logger.js';
 
 const DEFAULT_RPC_URL = 'https://node.testnet.casper.network/rpc';
 
@@ -92,6 +92,7 @@ export class CasperProvider {
     this.relayToken = opts.relayToken || process.env.CASPER_RELAY_TOKEN || '';
     this.providerAccountHash = opts.providerAccountHash || process.env.CASPER_PROVIDER_ACCOUNT_HASH || '';
     this.inferenceLayer = opts.inferenceLayer || null;
+    this.storageProvider = opts.storageProvider || null;
 
     // Reject any attempt to pass a private key — relay mode only
     if (opts.providerKeyPem || process.env.CASPER_PROVIDER_KEY_PEM || process.env.CASPER_PROVIDER_KEY_PEM_PATH) {
@@ -281,6 +282,10 @@ export class CasperProvider {
     const tt = Number(taskType) || 0;
 
     if (id.startsWith('STORAGE:') || tt === 1) {
+      if (this.storageProvider) {
+        this.logger.info(`Storage job ${id} delegated to dedicated storage provider`);
+        return `DELEGATED:${id}`;
+      }
       return this._handleStorageJob(id);
     }
     if (id.startsWith('COMPUTE:') || tt === 2) {

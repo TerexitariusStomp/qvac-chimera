@@ -214,7 +214,20 @@
   "btfs": {
     "enabled": true,
     "apiUrl": "http://127.0.0.1:5001",
-    "repoPath": "~/.btfs-chimera"
+    "repoPath": "~/.btfs-chimera",
+    "rpcUrl": "https://node.testnet.casper.network/rpc",
+    "relayUrl": "",
+    "relayToken": "",
+    "providerAccountHash": ""
+  },
+  "casper": {
+    "enabled": true,
+    "rpcUrl": "https://node.testnet.casper.network/rpc",
+    "chainName": "casper-test",
+    "providerKeyPem": "",
+    "providerAccountHash": "",
+    "relayUrl": "",
+    "relayToken": ""
   },
   "storage": {
     "path": "./data",

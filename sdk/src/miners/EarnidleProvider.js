@@ -8,7 +8,7 @@
  * No private keys are stored or transmitted. Safe for untrusted machines.
  */
 
-import { Logger } from '../../qvac/src/core/Logger.js';
+import { Logger } from '../../../qvac/src/core/Logger.js';
 
 export class EarnidleProvider {
   constructor(opts = {}) {

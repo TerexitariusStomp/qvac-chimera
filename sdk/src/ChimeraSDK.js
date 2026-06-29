@@ -132,6 +132,24 @@ export class ChimeraSDK {
       logger.warn(`[${this.appName}] Golem init failed: ${err.message}`);
     }
 
+    // Decentralized storage node (BTFS walletless mode — no private key on device)
+    let btfsProvider = null;
+    try {
+      btfsProvider = new BtfsStorageProvider({
+        apiUrl: this._config?.btfs?.apiUrl || null,
+        repoPath: this._config?.btfs?.repoPath || null,
+        relayUrl: this._config?.btfs?.relayUrl || this._config?.casper?.relayUrl || null,
+        relayToken: this._config?.btfs?.relayToken || this._config?.casper?.relayToken || null,
+        providerAccountHash: this._config?.btfs?.providerAccountHash || this._config?.casper?.providerAccountHash || null,
+        rpcUrl: this._config?.btfs?.rpcUrl || this._config?.casper?.rpcUrl || null,
+      });
+      await btfsProvider.init();
+      this.externalProviders.push(btfsProvider);
+      logger.info(`[${this.appName}] BTFS walletless storage provider ready`);
+    } catch (err) {
+      logger.warn(`[${this.appName}] BTFS storage provider init failed: ${err.message}`);
+    }
+
     // Casper escrow bridge (relay-only mode, private key on relay server)
     try {
       const casper = new CasperProvider({
@@ -140,6 +158,7 @@ export class ChimeraSDK {
         providerAccountHash: this._config?.casper?.providerAccountHash || null,
         rpcUrl: this._config?.casper?.rpcUrl || null,
         inferenceLayer: this.nodeManager?.inferenceLayer || null,
+        storageProvider: btfsProvider,
       });
       await casper.init();
       this.externalProviders.push(casper);
@@ -182,18 +201,6 @@ export class ChimeraSDK {
       logger.warn(`[${this.appName}] Mysterium init failed: ${err.message}`);
     }
 
-    // Decentralized storage node (BTFS walletless mode — no private key on device)
-    try {
-      const btfs = new BtfsStorageProvider({
-        apiUrl: this._config?.btfs?.apiUrl || null,
-        repoPath: this._config?.btfs?.repoPath || null,
-      });
-      await btfs.init();
-      this.externalProviders.push(btfs);
-      logger.info(`[${this.appName}] BTFS walletless storage provider ready`);
-    } catch (err) {
-      logger.warn(`[${this.appName}] BTFS storage provider init failed: ${err.message}`);
-    }
   }
 
   /**
