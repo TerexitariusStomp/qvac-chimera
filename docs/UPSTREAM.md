@@ -27,9 +27,10 @@ Only tasking networks that are **safe on untrusted hardware** are integrated. Th
 | **Routstr** | `github.com/routstr/routstr-core` | `upstream/routstr-core` | Protocol integration (`qvac/src/miners/RoutstrMiner.js`) | ✅ | Nostr/Cashu, no local keys |
 | **Earnidle** | `earnidle.com` (no public repo) | n/a | Protocol integration (`sdk/src/miners/EarnidleProvider.js` + `qvac/src/miners/EarnidleMiner.js`) | ✅ | Public wallet address only |
 | **BTT AI** | `github.com/BTT-AI-labs/miner-cli` | `upstream/btt-ai-miner` | Docker / GPU miner (`sdk/src/miners/BttAiMinerProvider.js`) | ✅ | Proxy mode, no local wallet |
-| **Golem** | `github.com/golemcloud/golem-runner` | `upstream/golem-runner` | Docker provider (`sdk/src/miners/GolemProvider.js`) | ✅ | Payout address only |
-| **Anyone Protocol** | `github.com/anyone-protocol/anyone` | `upstream/anyone-protocol` | Docker relay (`sdk/src/miners/AnyoneProtocolProvider.js`) | ✅ | No keys required |
-| **Mysterium** | `github.com/mysteriumnetwork/node` | `upstream/mysterium-node` | Docker VPN node (`sdk/src/miners/MysteriumProvider.js`) | ✅ | No keys required |
+| **Golem** | `github.com/golemfactory/yagna` | `upstream/golem` | Docker provider (`sdk/src/miners/GolemProvider.js`) | ✅ | Payout address only |
+| **Anyone Protocol** | `github.com/anyone-protocol/ator-protocol` | `upstream/anyone-protocol` | Docker relay (`sdk/src/miners/AnyoneProtocolProvider.js`) | ✅ | No keys required |
+| **Mysterium** | `github.com/mysteriumnetwork/node` | `upstream/mysterium` | Docker VPN node (`sdk/src/miners/MysteriumProvider.js`) | ✅ | No keys required |
+| **BTFS** | `github.com/bittorrent/go-btfs` | `upstream/btfs` | Walletless storage network (`sdk/src/miners/BtfsStorageProvider.js`) | ✅ | No BTT wallet on device; storage-host mode disabled; payments on Casper |
 
 Networks that require a private key, wallet mnemonic, account credentials, or self-managed config on the local machine have been removed from the codebase entirely because they cannot safely run on untrusted hardware and their upstream protocols do not support a relay/worker split. The old analysis is archived in `docs/RELAY_COMPATIBILITY.md` for reference.
 
@@ -99,6 +100,7 @@ git submodule update --remote upstream/knowledge-catalog
 | `GoogleCloudPlatform/knowledge-catalog` | `upstream/knowledge-catalog/` | Reference OKF spec at `upstream/knowledge-catalog/okf/SPEC.md` |
 | `zama-ai/concrete` | `upstream/concrete/` | Reference design and upstream API model for FHE layer |
 | `zama-ai/fhevm` | `upstream/fhevm/` | Solidity FHE runtime for encrypted on-chain inference jobs and results |
+| `bittorrent/go-btfs` | `upstream/btfs/` | Walletless storage daemon used by `sdk/src/miners/BtfsStorageProvider.js` |
 | **Tasking network forks** | `upstream/*` | Docker or binary builds; protocol wrappers in `qvac/src/miners/` and `sdk/src/miners/` |
 
 Tasking-network submodules are listed in `.gitmodules` and forked into the Localchimera GitHub org via `scripts/fork-upstream.sh`. After forking, update them with:
@@ -109,9 +111,10 @@ git submodule update --remote --merge \
   upstream/chutes-miner \
   upstream/routstr-core \
   upstream/btt-ai-miner \
-  upstream/golem-runner \
+  upstream/golem \
   upstream/anyone-protocol \
-  upstream/mysterium-node
+  upstream/mysterium \
+  upstream/btfs
 # Commit the updated submodule refs
 git add upstream/ && git commit -m "chore: bump tasking network forks"
 ```

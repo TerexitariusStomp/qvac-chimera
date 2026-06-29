@@ -10,7 +10,7 @@ import path from 'path';
 import os from 'os';
 import { promises as fs } from 'fs';
 
-const MYSTERIUM_DIR = path.join(os.homedir(), 'CascadeProjects', 'qvac-chimera', 'upstream', 'mysterium-node');
+const MYSTERIUM_DIR = path.join(os.homedir(), 'CascadeProjects', 'qvac-chimera', 'upstream', 'mysterium');
 
 export class MysteriumProvider {
   constructor(opts = {}) {
@@ -23,7 +23,7 @@ export class MysteriumProvider {
 
   async init() {
     const exists = await fs.access(MYSTERIUM_DIR).then(() => true).catch(() => false);
-    if (!exists) throw new Error('Mysterium node not found. Clone: git submodule add https://github.com/mysteriumnetwork/node.git upstream/mysterium-node');
+    if (!exists) throw new Error('Mysterium node not found. Clone: git submodule add https://github.com/mysteriumnetwork/node.git upstream/mysterium');
 
     try {
       execSync('docker --version', { stdio: 'ignore' });

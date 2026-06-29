@@ -31,15 +31,18 @@
 [submodule "upstream/btt-ai-miner"]
 	path = upstream/btt-ai-miner
 	url = https://github.com/BTT-AI-labs/miner-cli.git
-[submodule "upstream/golem-runner"]
-	path = upstream/golem-runner
-	url = https://github.com/golemcloud/golem-runner.git
+[submodule "upstream/golem"]
+	path = upstream/golem
+	url = https://github.com/golemfactory/yagna.git
 [submodule "upstream/anyone-protocol"]
 	path = upstream/anyone-protocol
-	url = https://github.com/anyone-protocol/anyone.git
-[submodule "upstream/mysterium-node"]
-	path = upstream/mysterium-node
+	url = https://github.com/anyone-protocol/ator-protocol.git
+[submodule "upstream/mysterium"]
+	path = upstream/mysterium
 	url = https://github.com/mysteriumnetwork/node.git
+[submodule "upstream/btfs"]
+	path = upstream/btfs
+	url = https://github.com/bittorrent/go-btfs.git
 [submodule "upstream/fhevm"]
 	path = upstream/fhevm
 	url = https://github.com/zama-ai/fhevm.git
