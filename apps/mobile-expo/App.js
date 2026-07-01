@@ -349,12 +349,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0a0a14',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   webview: {
     flex: 1,
     width: '100%',
+    height: '100%',
     backgroundColor: '#0e0d0b',
   },
   text: {
