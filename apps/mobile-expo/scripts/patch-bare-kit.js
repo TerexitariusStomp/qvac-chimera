@@ -21,38 +21,9 @@ if (fs.existsSync(specsFile)) {
   console.log('[patch-bare-kit] NativeBareKit.ts not found');
 }
 
-// 2. Patch index.js to handle null NativeBareKit gracefully
-const indexFile = path.join(baseDir, 'index.js');
-if (fs.existsSync(indexFile)) {
-  let content = fs.readFileSync(indexFile, 'utf-8');
-  if (!content.includes('__bareKitPatched')) {
-    // Add null check after the require for NativeBareKit
-    const oldRequire = "const { default: NativeBareKit } = require('./specs/NativeBareKit')";
-    const newRequire = `const { default: NativeBareKit } = require('./specs/NativeBareKit')
-// __bareKitPatched: graceful fallback when TurboModule is unavailable
-if (!NativeBareKit) {
-  console.warn('[BareKit] TurboModule not available - AI features will be disabled');
-  class UnavailableWorklet {
-    constructor() { throw new Error('BareKit TurboModule not available in this build'); }
-  }
-  class UnavailableIPC {
-    constructor() { throw new Error('BareKit TurboModule not available in this build'); }
-  }
-  module.exports = { Worklet: UnavailableWorklet, IPC: UnavailableIPC };
-  return;
-}`;
-    if (content.includes(oldRequire)) {
-      content = content.replace(oldRequire, newRequire);
-      fs.writeFileSync(indexFile, content);
-      console.log('[patch-bare-kit] Patched index.js with null check for NativeBareKit');
-    } else {
-      console.log('[patch-bare-kit] Could not find require line in index.js, skipping');
-    }
-  } else {
-    console.log('[patch-bare-kit] index.js already patched');
-  }
-} else {
-  console.log('[patch-bare-kit] index.js not found');
-}
+// 2. Don't patch index.js — when NativeBareKit is null, calling methods on it
+// will throw a TypeError (catchable by JS try/catch) rather than a
+// JavascriptException (which crashes the app). This is sufficient for
+// App.js's try/catch to handle the missing module gracefully.
 
 console.log('[patch-bare-kit] Done');
