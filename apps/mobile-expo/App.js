@@ -19,10 +19,24 @@ export default function App() {
       try {
         await FileSystem.makeDirectoryAsync(WIKI_DIR, { intermediates: true }).catch(() => {});
 
-        // TODO: @qvac/sdk / react-native-bare-kit crashes on release builds when
-        // initialized. Skipping model load until the native module issue is fixed.
-        // The wiki frontend will still load; AI endpoints will report unavailable.
-        setModelStatus('ready');
+        // Load the on-device LLM model via @qvac/sdk
+        try {
+          const { loadModel } = await import('@qvac/sdk');
+          console.log('[App] Loading LLM model:', LLAMA_MODEL);
+          const id = await loadModel({
+            modelSrc: LLAMA_MODEL,
+            modelType: 'llm',
+            onProgress: (progress) => {
+              console.log('[App] Model load progress:', progress);
+            },
+          });
+          setModelId(id);
+          setModelStatus('ready');
+          console.log('[App] Model loaded successfully:', id);
+        } catch (modelErr) {
+          console.error('[App] Model load failed:', modelErr);
+          setModelStatus(`error: ${modelErr.message}`);
+        }
       } catch (e) {
         console.error('Init error:', e);
         setModelStatus(`error: ${e.message}`);
@@ -271,10 +285,6 @@ export default function App() {
         console.log('[Bridge] After 2s, root children:', root ? root.children.length : 'no root');
         if (root && root.innerHTML.length > 0) {
           console.log('[Bridge] React rendered successfully');
-          // Debug: add visible borders to check layout
-          root.style.border = '3px solid red';
-          root.style.minHeight = '200px';
-          if (root.children[0]) { root.children[0].style.border = '2px solid yellow'; }
           // Debug computed styles
           var body = document.body;
           var bodyStyle = window.getComputedStyle(body);
