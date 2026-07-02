@@ -1,17 +1,50 @@
 {
   "name": "@chimera/sdk",
   "version": "1.0.0",
-  "description": "Chimera SDK — integrate local AI mining into your app. Earn when your users' devices are idle.",
-  "main": "src/ChimeraSDK.js",
+  "description": "Chimera SDK — tasking network provider SDK. Integrate decentralized compute, storage, bandwidth, and inference mining into your app.",
+  "main": "src/index.js",
+  "module": "src/index.js",
   "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "default": "./src/index.js"
+    },
+    "./src/useChimera.js": {
+      "import": "./src/useChimera.js",
+      "default": "./src/useChimera.js"
+    },
+    "./src/ChimeraSDK.js": {
+      "import": "./src/ChimeraSDK.js",
+      "default": "./src/ChimeraSDK.js"
+    },
+    "./src/miners/*": {
+      "import": "./src/miners/*.js",
+      "default": "./src/miners/*.js"
+    },
+    "./src/storage/*": {
+      "import": "./src/storage/*.js",
+      "default": "./src/storage/*.js"
+    },
+    "./src/runtime/*": {
+      "import": "./src/runtime/*.js",
+      "default": "./src/runtime/*.js"
+    }
+  },
+  "files": [
+    "src/",
+    "README.md"
+  ],
   "scripts": {
     "test": "node --test src/**/*.test.js"
   },
-  "keywords": ["chimera", "qvac", "mining", "inference", "ai", "p2p"],
+  "keywords": ["chimera", "qvac", "mining", "inference", "ai", "p2p", "cortensor", "chutes", "fortytwo", "earnidle", "routstr", "casper"],
   "author": "Chimera",
   "license": "MIT",
   "dependencies": {},
   "peerDependencies": {
-    "@qvac/sdk": ">=1.0.0"
+    "@qvac/sdk": ">=1.0.0",
+    "@privy-io/react-auth": ">=1.0.0",
+    "react": ">=18.0.0"
   }
 }

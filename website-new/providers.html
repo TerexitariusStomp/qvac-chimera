@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chimera Console — Providers</title>
+  <title>Chimera</title>
   <link rel="icon" type="image/png" href="chimeralogo-header.png">
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -163,42 +163,34 @@
     </header>
 
     <main class="content">
-      <h1 class="page-title">Network Capacity</h1>
-      <p class="page-subtitle">63 active providers on Mainnet</p>
+      <h1 class="page-title">Tasker Networks</h1>
+      <p class="page-subtitle">5 tasker networks · 4 Casper markets · One node</p>
 
       <div class="panel">
         <div class="stats-grid">
           <div class="stat-card">
-            <div class="stat-label">CPU</div>
-            <div class="donut" style="background:conic-gradient(var(--text) 25% 75%,var(--border) 0)">
-              <div class="donut-center">2.5k</div>
+            <div class="stat-label">Inference</div>
+            <div class="donut" style="background:conic-gradient(var(--text) 80%,var(--border) 0)">
+              <div class="donut-center">4</div>
             </div>
-            <div class="stat-value">2.55K CPU</div>
-            <div class="stat-detail">117 GPU / 10635 CPU</div>
+            <div class="stat-value">4 Networks</div>
+            <div class="stat-detail">Cortensor · Chutes · Fortytwo · Earnidle</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">GPU</div>
-            <div class="donut" style="background:conic-gradient(var(--text) 50%,var(--border) 0)">
-              <div class="donut-center">117</div>
+            <div class="stat-label">Inference / Nostr</div>
+            <div class="donut" style="background:conic-gradient(var(--text) 25%,var(--border) 0)">
+              <div class="donut-center">1</div>
             </div>
-            <div class="stat-value">117 GPU</div>
-            <div class="stat-detail">117 GPU / 230 GPU</div>
+            <div class="stat-value">1 Network</div>
+            <div class="stat-detail">Routstr</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Memory</div>
-            <div class="donut" style="background:conic-gradient(var(--text) 14%,var(--border) 0)">
-              <div class="donut-center">10.9</div>
+            <div class="stat-label">On-chain Markets</div>
+            <div class="donut" style="background:conic-gradient(var(--text) 100%,var(--border) 0)">
+              <div class="donut-center">4</div>
             </div>
-            <div class="stat-value">10.89 TB</div>
-            <div class="stat-detail">10.89 TB / 73.13 TB</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Storage</div>
-            <div class="donut" style="background:conic-gradient(var(--text) 4%,var(--border) 0)">
-              <div class="donut-center">35</div>
-            </div>
-            <div class="stat-value">35.08 TB</div>
-            <div class="stat-detail">35.08 TB / 838.26 TB</div>
+            <div class="stat-value">4 Markets</div>
+            <div class="stat-detail">Casper: Inference · Storage · Compute · Bandwidth</div>
           </div>
         </div>
       </div>
@@ -206,15 +198,10 @@
       <div class="panel">
         <div class="actions-bar">
           <div>
-            <div class="panel-title">Providers</div>
+            <div class="panel-title">Tasker Network Providers</div>
           </div>
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <input type="text" class="search-input" id="providerSearch" placeholder="Search providers" oninput="filterProviders(this.value)">
-            <select class="sort-select" id="sortSelect" onchange="sortProviders(this.value)">
-              <option value="leases">Active Leases (desc)</option>
-              <option value="name">Name</option>
-              <option value="uptime">Uptime</option>
-            </select>
+            <input type="text" class="search-input" id="providerSearch" placeholder="Search networks" oninput="filterProviders(this.value)">
             <a href="deploy.html" class="btn btn-primary">Become a provider</a>
           </div>
         </div>
@@ -222,17 +209,39 @@
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Location</th>
-                <th>Uptime</th>
-                <th>Active Leases</th>
-                <th>Disk</th>
-                <th>Audited</th>
-                <th>Favorite</th>
+                <th>Network</th>
+                <th>Type</th>
+                <th>Resource</th>
+                <th>Requirements</th>
+                <th>Trust Score</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody id="providerTable"></tbody>
           </table>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:20px">
+        <div class="panel-title" style="margin-bottom:16px">Casper Escrow Markets</div>
+        <p style="font-size:14px;color:var(--muted);margin-bottom:16px">Chimera nodes register on all four Casper market contracts for on-chain job assignment and escrow-settled payments.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+          <div style="padding:16px;border:1px solid var(--border);border-radius:10px">
+            <div style="font-size:14px;font-weight:600;color:#00e5ff;margin-bottom:6px">InferenceMarket</div>
+            <div style="font-size:12px;color:var(--muted)">LLM inference via WebGPU/WebLLM. Browser nodes and desktop apps serve inference jobs.</div>
+          </div>
+          <div style="padding:16px;border:1px solid var(--border);border-radius:10px">
+            <div style="font-size:14px;font-weight:600;color:#22c55e;margin-bottom:6px">StorageMarket</div>
+            <div style="font-size:12px;color:var(--muted)">IPFS/Helia file storage. Browser nodes pin and serve files via IPFS.</div>
+          </div>
+          <div style="padding:16px;border:1px solid var(--border);border-radius:10px">
+            <div style="font-size:14px;font-weight:600;color:#f97316;margin-bottom:6px">ComputeMarket</div>
+            <div style="font-size:12px;color:var(--muted)">WASI/Wasmer sandboxed compute. Browser nodes run WASM workloads.</div>
+          </div>
+          <div style="padding:16px;border:1px solid var(--border);border-radius:10px">
+            <div style="font-size:14px;font-weight:600;color:#3b82f6;margin-bottom:6px">BandwidthMarket</div>
+            <div style="font-size:12px;color:var(--muted)">WebRTC bandwidth sessions. Browser nodes provide relay bandwidth.</div>
+          </div>
         </div>
       </div>
     </main>
@@ -265,16 +274,12 @@
   }
 
   const providers=[
-    {name:'prov.aes-services.net',host:'AES Services',location:'US · DAL',uptime:'99.99%',leases:42,disk:'261 Mi / 4 Ti',audited:true,attrs:[{key:'host',val:'chimera'},{key:'tier',val:'community'},{key:'organization',val:'AES Services'},{key:'location-region',val:'na-us-southwest'},{key:'country',val:'US'},{key:'city',val:'DAL'},{key:'capabilities/cpu',val:'intel'},{key:'capabilities/cpu/arch',val:'x86-64'},{key:'capabilities/memory',val:'ddr4ecc'},{key:'capabilities/storage/1/class',val:'beta2'},{key:'capabilities/storage/1/persistent',val:'true'},{key:'network-speed-up',val:'1000'},{key:'network-speed-down',val:'1000'},{key:'feat-persistent-storage',val:'true'}]},
-    {name:'prov.all frontier.io',host:'AllFrontier',location:'US · SFO',uptime:'99.95%',leases:38,disk:'701 Mi / 8 Ti',audited:true,attrs:[{key:'host',val:'chimera'},{key:'tier',val:'community'},{key:'location-region',val:'na-us-west'},{key:'country',val:'US'},{key:'city',val:'SFO'},{key:'capabilities/cpu/arch',val:'x86-64'},{key:'network-speed-up',val:'1000'},{key:'network-speed-down',val:'1000'}]},
-    {name:'prov.ewtech.com.au',host:'EwTech',location:'AU · SYD',uptime:'99.91%',leases:31,disk:'916 Mi / 13 Ti',audited:true,attrs:[{key:'host',val:'chimera'},{key:'country',val:'AU'},{key:'city',val:'SYD'},{key:'capabilities/cpu/arch',val:'x86-64'}]},
-    {name:'prov.aes-chimera.pub',host:'ChimeraPub',location:'US · DAL',uptime:'99.98%',leases:29,disk:'2 Mi / 8 Ti',audited:true,attrs:[{key:'host',val:'chimera'},{key:'country',val:'US'},{key:'city',val:'DAL'}]},
-    {name:'prov.ainrapids.com',host:'AInRapids',location:'US · NYC',uptime:'99.88%',leases:25,disk:'1 Mi / 12 Ti',audited:true,attrs:[{key:'host',val:'chimera'},{key:'country',val:'US'},{key:'city',val:'NYC'}]},
-    {name:'prov.b-palm.be',host:'BPalm',location:'BE · BRU',uptime:'99.92%',leases:22,disk:'60 Mi / 2 Ti',audited:true,attrs:[{key:'host',val:'chimera'},{key:'country',val:'BE'},{key:'city',val:'BRU'}]},
-    {name:'provider.golden.fy',host:'GoldenFY',location:'SG · SIN',uptime:'99.85%',leases:19,disk:'251 Mi / 6 Ti',audited:false,attrs:[{key:'host',val:'chimera'},{key:'country',val:'SG'},{key:'city',val:'SIN'}]},
-    {name:'prov.chimera.pal',host:'ChimeraPal',location:'IN · MUM',uptime:'99.79%',leases:15,disk:'73 Mi / 18 Ti',audited:true,attrs:[{key:'host',val:'chimera'},{key:'country',val:'IN'},{key:'city',val:'MUM'}]},
-    {name:'prov.cloudmax.net',host:'CloudMax',location:'DE · FRA',uptime:'99.96%',leases:12,disk:'35 Mi / 31 Ti',audited:true,attrs:[{key:'host',val:'chimera'},{key:'country',val:'DE'},{key:'city',val:'FRA'}]},
-    {name:'prov.northnode.io',host:'NorthNode',location:'CA · TOR',uptime:'99.90%',leases:10,disk:'492 Mi / 16 Ti',audited:true,attrs:[{key:'host',val:'chimera'},{key:'country',val:'CA'},{key:'city',val:'TOR'}]}
+    {name:'Cortensor',type:'Inference',resource:'GPU/CPU inference',requirements:'EVM wallet',trust:'95%',status:'active',attrs:[{key:'network',val:'Cortensor'},{key:'task_type',val:'inference'},{key:'browser_node',val:'yes'},{key:'docker',val:'no'}]},
+    {name:'Chutes',type:'Inference',resource:'GPU/CPU inference',requirements:'EVM wallet',trust:'92%',status:'active',attrs:[{key:'network',val:'Bittensor'},{key:'platform',val:'chutes.ai'},{key:'payment',val:'TAO'},{key:'task_type',val:'inference'},{key:'browser_node',val:'no'},{key:'docker',val:'no'}]},
+    {name:'Fortytwo',type:'Inference',resource:'Swarm inference (generator/judge)',requirements:'EVM wallet',trust:'90%',status:'active',attrs:[{key:'network',val:'Fortytwo'},{key:'consensus',val:'Bradley-Terry'},{key:'roles',val:'generator + judge'},{key:'task_type',val:'inference'},{key:'browser_node',val:'no'},{key:'docker',val:'no'}]},
+    {name:'Earnidle',type:'Inference',resource:'CPU inference',requirements:'Solana wallet',trust:'85%',status:'active',attrs:[{key:'network',val:'IDLE'},{key:'platform',val:'api.earnidle.com'},{key:'payment',val:'USDC (Solana)'},{key:'task_type',val:'inference'},{key:'browser_node',val:'no'},{key:'docker',val:'no'}]},
+    {name:'Routstr',type:'Inference',resource:'GPU/CPU inference',requirements:'Nostr key (nsec)',trust:'88%',status:'active',attrs:[{key:'network',val:'Nostr'},{key:'platform',val:'routstr.com'},{key:'payment',val:'Lightning BTC'},{key:'task_type',val:'inference'},{key:'browser_node',val:'no'},{key:'docker',val:'no'}]},
+    {name:'Casper',type:'On-chain Markets',resource:'Inference · Storage · Compute · Bandwidth',requirements:'Casper wallet',trust:'95%',status:'active',attrs:[{key:'network',val:'Casper'},{key:'markets',val:'InferenceMarket, StorageMarket, ComputeMarket, BandwidthMarket'},{key:'settlement',val:'CSPR + escrow'},{key:'task_type',val:'inference, storage, compute, bandwidth'},{key:'browser_node',val:'yes'},{key:'docker',val:'no'}]}
   ];
   let currentProviders=[...providers];
 
@@ -284,13 +289,12 @@
     list.forEach((p,i)=>{
       const tr=document.createElement('tr');
       tr.innerHTML=`
-        <td><div class="provider-name">${p.name}</div><div class="provider-host">${p.host}</div></td>
-        <td>${p.location}</td>
-        <td>${p.uptime}</td>
-        <td>${p.leases}</td>
-        <td>${p.disk}</td>
-        <td><span class="badge ${p.audited?'badge-audited':'badge-pending'}">${p.audited?'Yes':'No'}</span></td>
-        <td><span class="star" onclick="toggleStar(this)">★</span></td>
+        <td><div class="provider-name">${p.name}</div></td>
+        <td>${p.type}</td>
+        <td>${p.resource}</td>
+        <td>${p.requirements}</td>
+        <td>${p.trust}</td>
+        <td><span class="badge badge-audited">${p.status}</span></td>
       `;
       tr.querySelector('.provider-name').style.cursor='pointer';
       tr.querySelector('.provider-name').onclick=()=>openAttrs(p);
@@ -299,15 +303,8 @@
   }
   function filterProviders(query){
     const q=query.toLowerCase();
-    currentProviders=providers.filter(p=>p.name.toLowerCase().includes(q)||p.location.toLowerCase().includes(q)||p.host.toLowerCase().includes(q));
-    sortProviders(document.getElementById('sortSelect').value);
-  }
-  function sortProviders(by){
-    const list=[...currentProviders];
-    if(by==='name') list.sort((a,b)=>a.name.localeCompare(b.name));
-    else if(by==='uptime') list.sort((a,b)=>parseFloat(b.uptime)-parseFloat(a.uptime));
-    else list.sort((a,b)=>b.leases-a.leases);
-    renderTable(list);
+    currentProviders=providers.filter(p=>p.name.toLowerCase().includes(q)||p.type.toLowerCase().includes(q)||p.resource.toLowerCase().includes(q));
+    renderTable(currentProviders);
   }
   function toggleStar(el){el.classList.toggle('active');}
   function openAttrs(p){
@@ -316,14 +313,14 @@
       <div class="attr-row">
         <div class="attr-key">${a.key}</div>
         <div class="attr-val">${a.val}</div>
-        <div class="attr-auditor">Localchimera Network</div>
+        <div class="attr-auditor">Chimera Network</div>
       </div>
     `).join('');
     document.getElementById('attrModal').classList.add('open');
   }
   function closeModal(){document.getElementById('attrModal').classList.remove('open');}
 
-  sortProviders('leases');
+  renderTable(currentProviders);
 </script>
 
 </body>

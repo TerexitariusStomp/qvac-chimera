@@ -15,10 +15,22 @@ export default function AIWriter() {
   const [error, setError] = useState(null);
   const [docs, setDocs] = useState([]);
   const [status, setStatus] = useState(null);
+  const [accessToken, setAccessToken] = useState(() => {
+    try { return localStorage.getItem('chimera_access_token') || ''; } catch { return ''; }
+  });
+  const [accessSession, setAccessSession] = useState(() => {
+    try { const s = localStorage.getItem('chimera_access_session'); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
+  const [showAccessPanel, setShowAccessPanel] = useState(false);
+  const [purchaseAmount, setPurchaseAmount] = useState('1.00');
+  const [pricing, setPricing] = useState(null);
+  const [purchasing, setPurchasing] = useState(false);
+  const [accessError, setAccessError] = useState(null);
 
   useEffect(() => {
     fetchStatus();
     fetchDocs();
+    fetchPricing();
   }, []);
 
   const fetchStatus = async () => {
@@ -41,6 +53,75 @@ export default function AIWriter() {
     }
   };
 
+  const fetchPricing = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/inference-access/pricing`);
+      const json = await res.json();
+      if (json.success) setPricing(json.data);
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const refreshAccessStatus = async () => {
+    if (!accessSession?.sessionId) return;
+    try {
+      const res = await fetch(`${API_BASE}/inference-access/status?sessionId=${accessSession.sessionId}`);
+      const json = await res.json();
+      if (json.success) {
+        setAccessSession(json.data);
+        localStorage.setItem('chimera_access_session', JSON.stringify(json.data));
+        if (json.data.credit <= 0 || !json.data.active) {
+          setAccessToken('');
+          localStorage.removeItem('chimera_access_token');
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const handlePurchase = async () => {
+    const amt = parseFloat(purchaseAmount);
+    if (!amt || amt <= 0) { setAccessError('Enter a valid amount'); return; }
+    setPurchasing(true);
+    setAccessError(null);
+    try {
+      const res = await fetch(`${API_BASE}/inference-access/purchase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amountUSDT: amt }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        const data = json.data;
+        setAccessToken(data.token);
+        localStorage.setItem('chimera_access_token', data.token);
+        const sessionInfo = {
+          sessionId: data.sessionId,
+          credit: data.credit,
+          pricePerToken: data.pricePerToken,
+          expiresAt: data.expiresAt,
+          active: true,
+        };
+        setAccessSession(sessionInfo);
+        localStorage.setItem('chimera_access_session', JSON.stringify(sessionInfo));
+      } else {
+        setAccessError(json.error || 'Purchase failed');
+      }
+    } catch (e) {
+      setAccessError(e.message);
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
+  const clearAccess = () => {
+    setAccessToken('');
+    setAccessSession(null);
+    try { localStorage.removeItem('chimera_access_token'); localStorage.removeItem('chimera_access_session'); } catch {}
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!prompt.trim()) return;
@@ -51,7 +132,7 @@ export default function AIWriter() {
     try {
       const res = await fetch(`${API_BASE}/ai-write`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}) },
         body: JSON.stringify({ prompt, title })
       });
       const json = await res.json();
@@ -82,7 +163,53 @@ export default function AIWriter() {
       <div style={styles.statusBar}>
         <span style={styles.statusLabel}>Backend:</span>
         {statusBadge()}
-        <button style={styles.refreshBtn} onClick={fetchStatus} disabled={loading}>Refresh</button>
+        {accessToken && accessSession?.active && (
+          <span style={styles.badgeBlue}>Access: {accessSession.credit?.toLocaleString()} credits left</span>
+        )}
+        <button style={styles.refreshBtn} onClick={() => { fetchStatus(); refreshAccessStatus(); }} disabled={loading}>Refresh</button>
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <button style={styles.toggleKeyBtn} onClick={() => setShowAccessPanel(s => !s)}>
+          {showAccessPanel ? '▾' : '▸'} Inference Access (Pay-per-use)
+        </button>
+        {showAccessPanel && (
+          <div style={styles.keyPanel}>
+            {accessSession?.active && accessToken ? (
+              <div>
+                <p style={styles.keyHint}>You have an active access session. Credits are deducted per inference request.</p>
+                <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <div><span style={styles.label}>Session</span><br/><span style={{ color: '#e2e2e2', fontSize: 13 }}>{accessSession.sessionId?.slice(0, 16)}...</span></div>
+                  <div><span style={styles.label}>Credits</span><br/><span style={{ color: '#86efac', fontSize: 14, fontWeight: 600 }}>{accessSession.credit?.toLocaleString()}</span></div>
+                  <div><span style={styles.label}>Price/token</span><br/><span style={{ color: '#e2e2e2', fontSize: 13 }}>{accessSession.pricePerToken?.toFixed(6)} USDT</span></div>
+                  <div><span style={styles.label}>Expires</span><br/><span style={{ color: '#e2e2e2', fontSize: 13 }}>{accessSession.expiresAt ? new Date(accessSession.expiresAt).toLocaleTimeString() : '-'}</span></div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button style={styles.btn} onClick={refreshAccessStatus}>Refresh Status</button>
+                  <button style={{ ...styles.btn, background: '#7f1d1d' }} onClick={clearAccess}>Clear Session</button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <p style={styles.keyHint}>Purchase inference credits to use AI Writer. You pay USDT and receive a session token with token credits. No API key sharing — your access is private and temporary.</p>
+                {pricing && (
+                  <div style={{ marginBottom: 12, padding: '8px 12px', background: '#12121c', borderRadius: 6, border: '1px solid #1e1e2e' }}>
+                    <span style={{ color: '#94a3b8', fontSize: 12 }}>Current price: </span>
+                    <span style={{ color: '#93c5fd', fontSize: 13, fontWeight: 600 }}>{pricing.pricePer1kTokens} USDT / 1k tokens</span>
+                  </div>
+                )}
+                <div style={styles.field}>
+                  <label style={styles.label}>Amount (USDT)</label>
+                  <input style={styles.input} value={purchaseAmount} onChange={e => setPurchaseAmount(e.target.value)} placeholder="1.00" disabled={purchasing} />
+                </div>
+                {accessError && <div style={{ color: '#fca5a5', fontSize: 12, marginBottom: 8 }}>{accessError}</div>}
+                <button style={styles.btn} onClick={handlePurchase} disabled={purchasing}>
+                  {purchasing ? 'Processing...' : 'Purchase Credits'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} style={styles.form}>
@@ -148,6 +275,9 @@ const styles = {
   statusLabel: { color: '#64748b', fontSize: 13 },
   badgeGreen: { background: '#166534', color: '#86efac', padding: '3px 10px', borderRadius: 4, fontSize: 12 },
   badgeBlue: { background: '#1e3a8a', color: '#93c5fd', padding: '3px 10px', borderRadius: 4, fontSize: 12 },
+  toggleKeyBtn: { background: 'none', border: '1px solid #1e1e2e', color: '#94a3b8', padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', width: '100%', textAlign: 'left' },
+  keyPanel: { marginTop: 8, padding: 16, background: '#0a0a14', border: '1px solid #1e1e2e', borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 12 },
+  keyHint: { color: '#94a3b8', fontSize: 12, margin: '0 0 4px', lineHeight: 1.5 },
   badgeOrange: { background: '#7c2d12', color: '#fdba74', padding: '3px 10px', borderRadius: 4, fontSize: 12 },
   badgeGray: { background: '#374151', color: '#d1d5db', padding: '3px 10px', borderRadius: 4, fontSize: 12 },
   refreshBtn: { marginLeft: 'auto', background: '#1e1e2e', color: '#94a3b8', border: '1px solid #2e2e3e', padding: '4px 10px', borderRadius: 4, fontSize: 12, cursor: 'pointer' },

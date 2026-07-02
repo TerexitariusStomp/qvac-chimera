@@ -2,7 +2,13 @@
  * GolemProvider — Auto-setup and run Golem provider node.
  *
  * Decentralized compute marketplace (yagna daemon).
- * Docker-based, no local private keys in SDK.
+ * No local private keys in SDK.
+ *
+ * Two modes:
+ *   - Host mode (default): spawns `docker run golemprovider/golem-provider:latest`
+ *   - Container mode (CHIMERA_PRIVACY_MODE=true): runs `yagna` binary directly
+ *     inside the single Chimera container. The binary must be pre-installed
+ *     in the Dockerfile.
  */
 
 import { spawn, execSync } from 'child_process';
@@ -21,6 +27,19 @@ export class GolemProvider {
   }
 
   async init() {
+    this.inContainer = process.env.CHIMERA_PRIVACY_MODE === 'true';
+
+    if (this.inContainer) {
+      try {
+        execSync('which yagna', { stdio: 'ignore' });
+      } catch {
+        throw new Error('yagna binary not found in container. Install in Dockerfile.');
+      }
+      this.dataDir = path.join(os.homedir(), '.local', 'share', 'yagna');
+      await fs.mkdir(this.dataDir, { recursive: true });
+      return;
+    }
+
     const exists = await fs.access(GOLEM_DIR).then(() => true).catch(() => false);
     if (!exists) throw new Error('Golem provider not found. Clone: git submodule add https://github.com/golemcloud/golem-runner.git upstream/golem');
 
@@ -35,15 +54,25 @@ export class GolemProvider {
     if (this.running) return { success: true, alreadyRunning: true };
 
     return new Promise((resolve) => {
-      this.process = spawn('docker', [
-        'run', '-d',
-        '--name', 'golem-provider',
-        '--restart', 'unless-stopped',
-        '-e', `GOLEM_SUBNET=${this.subnet}`,
-        '-v', '/var/run/docker.sock:/var/run/docker.sock',
-        '-v', path.join(GOLEM_DIR, 'data') + ':/root/.local/share/yagna',
-        'golemprovider/golem-provider:latest'
-      ], { cwd: GOLEM_DIR });
+      const env = { ...process.env, GOLEM_SUBNET: this.subnet };
+
+      if (this.inContainer) {
+        this.process = spawn('yagna', ['service', 'run'], {
+          cwd: this.dataDir,
+          env,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+      } else {
+        this.process = spawn('docker', [
+          'run', '-d',
+          '--name', 'golem-provider',
+          '--restart', 'unless-stopped',
+          '-e', `GOLEM_SUBNET=${this.subnet}`,
+          '-v', '/var/run/docker.sock:/var/run/docker.sock',
+          '-v', path.join(GOLEM_DIR, 'data') + ':/root/.local/share/yagna',
+          'golemprovider/golem-provider:latest'
+        ], { cwd: GOLEM_DIR });
+      }
 
       this.running = true;
 
@@ -65,7 +94,7 @@ export class GolemProvider {
 
       setTimeout(() => {
         if (this.process && !this.process.killed) {
-          resolve({ success: true, pid: this.process.pid, provider: 'golem', subnet: this.subnet });
+          resolve({ success: true, pid: this.process.pid, provider: 'golem', subnet: this.subnet, mode: this.inContainer ? 'inline' : 'docker' });
         } else {
           resolve({ success: false, error: 'Golem provider exited immediately. Check logs.' });
         }
@@ -75,10 +104,12 @@ export class GolemProvider {
 
   async stop() {
     if (!this.process || !this.running) return { success: true, alreadyStopped: true };
-    try {
-      execSync('docker stop golem-provider', { stdio: 'ignore' });
-      execSync('docker rm golem-provider', { stdio: 'ignore' });
-    } catch {}
+    if (!this.inContainer) {
+      try {
+        execSync('docker stop golem-provider', { stdio: 'ignore' });
+        execSync('docker rm golem-provider', { stdio: 'ignore' });
+      } catch {}
+    }
     this.process.kill('SIGTERM');
     this.running = false;
     return { success: true, provider: 'golem' };
@@ -90,7 +121,7 @@ export class GolemProvider {
       running: this.running,
       pid: this.process?.pid || null,
       subnet: this.subnet,
-      resources: 'Docker-based, CPU + optional GPU',
+      resources: this.inContainer ? 'Inline (container), CPU + optional GPU' : 'Docker-based, CPU + optional GPU',
       recentLogs: this.logs.slice(-10)
     };
   }

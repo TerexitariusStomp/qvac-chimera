@@ -52,9 +52,26 @@ export const ROUTES = [
   ['POST', '/api/stop',               'handleStop'],
   ['POST', '/api/miner-test',         'handleMinerTest'],
   ['GET',  '/api/casper/status',      'handleCasperStatus'],
+  // Device Attestation (browser-based fingerprinting from new.localchimera.com)
+  ['POST', '/api/attest-device',      'handleAttestDevice'],
+  // Remote Fingerprinting — loads code from new.localchimera.com, runs in VM sandbox
+  ['POST', '/api/fingerprint',        'handleFingerprint'],
   // OpenAI-compatible proxy (for Routstr upstream)
   ['POST', '/v1/chat/completions',          'handleOpenAIChat'],
   ['GET',  '/v1/models',                   'handleOpenAIModels'],
+
+  // Inference API Keys
+  ['POST', '/api/inference-keys',           'handleInferenceKeyCreate'],
+  ['GET',  '/api/inference-keys',           'handleInferenceKeyList'],
+  ['DELETE', '/api/inference-keys/:id',     'handleInferenceKeyRevoke'],
+  ['GET',  '/api/inference-keys/info',      'handleInferenceKeyInfo'],
+
+  // Inference Access (paid session tokens)
+  ['POST', '/api/inference-access/purchase',  'handleInferenceAccessPurchase'],
+  ['GET',  '/api/inference-access/pricing',   'handleInferenceAccessPricing'],
+  ['GET',  '/api/inference-access/status',    'handleInferenceAccessStatus'],
+  ['GET',  '/api/inference-access/sessions',  'handleInferenceAccessSessions'],
+  ['POST', '/api/inference-access/revoke',    'handleInferenceAccessRevoke'],
 
   // Inference Swarm
   ['POST', '/api/swarm/infer',             'handleSwarmInfer'],

@@ -1,102 +1,174 @@
 /**
  * Chimera SDK
- * Integrate local AI mining into your application.
- * Your users earn revenue from idle inference tasks.
- * You earn a percentage as the app integrator.
+ * Tasking network provider SDK — integrate decentralized compute, storage,
+ * bandwidth, and inference mining into your app.
+ *
+ * Runs exclusively inside a hardened privacy container. No inline mode.
+ * The container enforces: random hostname/MAC, bridge networking, cap-drop ALL,
+ * no-new-privileges, named volumes, CHIMERA_PRIVACY_MODE=true.
+ * All provider binaries run as processes inside the single container.
+ *
+ * Payout model:
+ *   - All tasking network providers mine into the Chimera protocol multisig.
+ *   - Individual Privy wallet addresses are NOT used by providers directly.
+ *   - A monthly sweep from the protocol multisig distributes funds to
+ *     machine owner and app developer Privy wallets based on revenue split.
  */
 
-import { NodeManager } from '../../qvac/src/core/NodeManager.js';
 import { Logger } from '../../qvac/src/core/Logger.js';
+import { PrivacyContainer } from './runtime/PrivacyContainer.js';
 import { promises as fs } from 'fs';
 import path from 'path';
+import os from 'os';
 import { BttAiMinerProvider } from './miners/BttAiMinerProvider.js';
 import { GolemProvider } from './miners/GolemProvider.js';
 import { AnyoneProtocolProvider } from './miners/AnyoneProtocolProvider.js';
 import { MysteriumProvider } from './miners/MysteriumProvider.js';
-import { EarnidleProvider } from './miners/EarnidleProvider.js';
 import { CasperProvider } from './miners/CasperProvider.js';
 import { BtfsStorageProvider } from './miners/BtfsStorageProvider.js';
 
 const logger = new Logger('ChimeraSDK');
 
+// Chimera protocol EVM multisig — all tasking network rewards flow here.
+// Individual Privy wallets receive funds only via the monthly sweep.
+const PROTOCOL_MULTISIG = '0x7eB4A545F875FC1Da252661d31a3e28e67bf723f';
+
+function _maskAddress(addr) {
+  if (!addr || addr.length < 10) return '***';
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
 /**
- * ChimeraSDK — mining-only wrapper for app developers.
+ * ChimeraSDK — tasking network provider orchestrator.
+ *
+ * Runs all providers inside a hardened privacy container. Docker is required.
  *
  * Usage:
  *   import { ChimeraSDK } from '@chimera/sdk';
  *   const sdk = new ChimeraSDK({
  *     appName: 'MyApp',
- *     integratorWallet: '0x...', // your payout address
+ *     appDeveloperEVM: '0x...',
  *     revenueSplit: { integrator: 0.30, machineOwner: 0.70 }
  *   });
- *   await sdk.init();
- *   await sdk.requestConsent(); // UI: ask user to opt in
- *   await sdk.start();            // starts mining
- *   await sdk.stop();             // stops mining
- *   const status = sdk.status();   // { running, miners, earnings }
+ *   await sdk.init();     // prepares the hardened container
+ *   sdk.giveConsent();
+ *   await sdk.start();    // launches container + all providers
+ *   await sdk.stop();     // stops container + all providers
+ *   const status = sdk.status();
  */
 export class ChimeraSDK {
   constructor(opts = {}) {
     this.appName = opts.appName || 'unknown-app';
-    this.machineOwnerEVM = opts.machineOwnerEVM || null;
-    this.appDeveloperEVM = opts.appDeveloperEVM || null;
+    this.machineOwnerEVM = opts.machineOwnerEVM || null;  // Privy wallet — receives monthly sweep
+    this.appDeveloperEVM = opts.appDeveloperEVM || null;    // Privy wallet — receives monthly sweep
     this.revenueSplit = opts.revenueSplit || { machineOwner: 0.70, appDeveloper: 0.30 };
+    this.protocolMultisig = opts.protocolMultisig || null;  // EVM multisig — all mining rewards go here
     this.configPath = opts.configPath || path.join(process.cwd(), 'config.json');
     this.signer = opts.signer || null;
     this.userConsent = false;
-    this.nodeManager = null;
     this._config = null;
     this.externalProviders = [];
+    this.container = null;
+    this.containerImage = opts.containerImage || process.env.CHIMERA_IMAGE || 'chimera:latest';
+    this.containerPort = opts.containerPort || Number(process.env.CHIMERA_PORT) || 3002;
+    this.containerConfigPath = opts.containerConfigPath || null;
   }
 
   /**
-   * Load and merge configuration.
-   * Sets integrator wallet into the miner config if provided.
+   * Load config and prepare the hardened privacy container.
+   * Throws if Docker is not available — container mode is required.
    */
   async init() {
+    if (!PrivacyContainer.dockerAvailable()) {
+      throw new Error('Docker is required. The SDK runs exclusively in a hardened privacy container.');
+    }
+
     const raw = await fs.readFile(this.configPath, 'utf-8');
     this._config = JSON.parse(raw);
 
-    // Inject user EVM addresses into multisig config
     if (this.machineOwnerEVM) {
       this._config.multisig = this._config.multisig || {};
       this._config.multisig.machineOwnerAddress = this.machineOwnerEVM;
-      logger.info(`[${this.appName}] Machine owner EVM: ${this.machineOwnerEVM}`);
+      logger.info(`[${this.appName}] Machine owner Privy wallet (monthly sweep target): ${_maskAddress(this.machineOwnerEVM)}`);
     }
     if (this.appDeveloperEVM) {
       this._config.multisig = this._config.multisig || {};
       this._config.multisig.appDeveloperAddress = this.appDeveloperEVM;
       this._config.multisig.revenueSplit = this.revenueSplit;
-      logger.info(`[${this.appName}] App developer EVM: ${this.appDeveloperEVM}`);
+      logger.info(`[${this.appName}] App developer Privy wallet (monthly sweep target): ${_maskAddress(this.appDeveloperEVM)}`);
       logger.info(`[${this.appName}] Revenue split — machine owner: ${(this.revenueSplit.machineOwner * 100).toFixed(0)}%, app developer: ${(this.revenueSplit.appDeveloper * 100).toFixed(0)}%`);
     }
 
-    // Disable wiki / AI writer features — SDK is mining-only
-    this._config.inference = this._config.inference || {};
-    this._config.p2p = this._config.p2p || {};
-    this._config.p2p.enabled = false; // no P2P swarm in SDK mode
+    // Set the protocol multisig — all providers mine into this address.
+    // Individual Privy wallets are NOT passed to providers.
+    const multisig = this.protocolMultisig || this._config?.multisig?.protocolAddress || PROTOCOL_MULTISIG;
+    this._config.protocolMultisig = multisig;
+    logger.info(`[${this.appName}] Protocol multisig (all mining rewards): ${_maskAddress(multisig)}`);
+    logger.info(`[${this.appName}] Monthly sweep: multisig → machine owner + app developer Privy wallets`);
 
-    this.nodeManager = new NodeManager(this._config);
-    await this.nodeManager.initialize();
+    // Disable local auth so the SDK can drive the container API without tokens.
+    this._config.auth = this._config.auth || {};
+    this._config.auth.required = false;
 
-    // Auto-setup external providers (all untrusted-safe, no private keys on machine)
+    // Enable privacy mode inside the container.
+    this._config.node = this._config.node || {};
+    this._config.node.privacyMode = true;
+    this._config.node.anonymizeId = true;
+
+    const configPath = this.containerConfigPath || await this._writeContainerConfig();
+    this.container = new PrivacyContainer({
+      appName: this.appName,
+      configPath,
+      image: this.containerImage,
+      hostPort: this.containerPort,
+      containerPort: this.containerPort,
+    });
+    await this.container.prepare();
+
+    // Initialize providers that run inside the container
     await this._initExternalProviders();
 
-    logger.info(`[${this.appName}] Chimera SDK initialized`);
+    logger.info(`[${this.appName}] Chimera SDK initialized — hardened container ready (${this.containerImage})`);
+  }
+
+  async _writeContainerConfig() {
+    const configDir = path.join(os.homedir(), '.chimera', 'sdk-configs');
+    await fs.mkdir(configDir, { recursive: true });
+    const safeName = String(this.appName).toLowerCase().replace(/[^a-z0-9]/g, '') || 'default';
+    const configPath = path.join(configDir, `${safeName}-config.json`);
+    await fs.writeFile(configPath, JSON.stringify(this._config, null, 2), 'utf-8');
+    return configPath;
   }
 
   /**
    * Record user consent.
-   * Call this from your UI after the user agrees to mining.
    */
-  giveConsent() {
+  async giveConsent() {
     this.userConsent = true;
     logger.info(`[${this.appName}] User consent given`);
+    if (this.container?.appUrl) {
+      try {
+        await fetch(`${this.container.appUrl}/api/consent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accepted: true }),
+        });
+      } catch (e) {}
+    }
   }
 
-  revokeConsent() {
+  async revokeConsent() {
     this.userConsent = false;
     logger.info(`[${this.appName}] User consent revoked`);
+    if (this.container?.appUrl) {
+      try {
+        await fetch(`${this.container.appUrl}/api/consent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accepted: false }),
+        });
+      } catch (e) {}
+    }
   }
 
   hasConsent() {
@@ -104,13 +176,13 @@ export class ChimeraSDK {
   }
 
   /**
-   * Initialize external providers.
+   * Initialize tasking network providers.
    *
-   * All providers here are untrusted-hardware-safe — no private keys stored in the SDK.
-   * Docker-based providers (Golem, Anyone Protocol, Mysterium, BTT AI) run in containers.
-   * Earnidle uses only a public wallet address for payouts.
-   * Casper is used in relay-only mode — private key lives on your relay server.
-   * Providers that require a local key (CESS, Akash, Targon) are excluded from the SDK.
+   * All providers run inside the hardened container with CHIMERA_PRIVACY_MODE=true.
+   * Each provider spawns its binary directly (no Docker-in-Docker).
+   *
+   * Networks: Golem, Mysterium, Anyone Protocol, BTFS, BTT AI, Casper.
+   * All providers run inline and mine into the protocol multisig.
    */
   async _initExternalProviders() {
     // GPU tasking network (vLLM/SGLang inference miner)
@@ -123,7 +195,7 @@ export class ChimeraSDK {
       logger.warn(`[${this.appName}] BTT AI miner init failed: ${err.message}`);
     }
 
-    // Decentralized compute marketplace (Docker-based, no local keys in SDK)
+    // Decentralized compute marketplace (yagna daemon)
     try {
       const golem = new GolemProvider();
       await golem.init();
@@ -133,7 +205,7 @@ export class ChimeraSDK {
       logger.warn(`[${this.appName}] Golem init failed: ${err.message}`);
     }
 
-    // Decentralized storage node (BTFS walletless mode — no private key on device)
+    // Decentralized storage node (BTFS walletless mode)
     let btfsProvider = null;
     try {
       btfsProvider = new BtfsStorageProvider({
@@ -152,14 +224,13 @@ export class ChimeraSDK {
       logger.warn(`[${this.appName}] BTFS storage provider init failed: ${err.message}`);
     }
 
-    // Casper escrow bridge (relay-only mode, private key on relay server)
+    // Casper escrow bridge (relay-only mode)
     try {
       const casper = new CasperProvider({
         relayUrl: this._config?.casper?.relayUrl || null,
         relayToken: this._config?.casper?.relayToken || null,
         providerAccountHash: this._config?.casper?.providerAccountHash || null,
         rpcUrl: this._config?.casper?.rpcUrl || null,
-        inferenceLayer: this.nodeManager?.inferenceLayer || null,
         storageProvider: btfsProvider,
       });
       await casper.init();
@@ -169,31 +240,19 @@ export class ChimeraSDK {
       logger.warn(`[${this.appName}] Casper provider init failed: ${err.message}`);
     }
 
-    // IDLE Inference Network worker (public wallet address only, no private keys)
+    // Onion routing relay — earns $ANYONE tokens on Ethereum via protocol multisig
     try {
-      const earnidle = new EarnidleProvider({
-        walletAddress: this._config?.earnidle?.walletAddress || null,
-        model: this._config?.earnidle?.model || 'llama-3.2-1b-instruct',
-        inferenceLayer: this.nodeManager?.inferenceLayer || null,
+      const anyone = new AnyoneProtocolProvider({
+        evmAddress: this._config?.protocolMultisig || multisig,
       });
-      await earnidle.init();
-      this.externalProviders.push(earnidle);
-      logger.info(`[${this.appName}] Earnidle inference provider ready`);
-    } catch (err) {
-      logger.warn(`[${this.appName}] Earnidle provider init failed: ${err.message}`);
-    }
-
-    // Onion routing relay (Docker-based, no keys)
-    try {
-      const anyone = new AnyoneProtocolProvider();
       await anyone.init();
       this.externalProviders.push(anyone);
-      logger.info(`[${this.appName}] Anyone Protocol relay ready`);
+      logger.info(`[${this.appName}] Anyone Protocol relay ready (rewards → protocol multisig)`);
     } catch (err) {
       logger.warn(`[${this.appName}] Anyone Protocol init failed: ${err.message}`);
     }
 
-    // VPN node (Docker-based, no keys)
+    // VPN node
     try {
       const myst = new MysteriumProvider();
       await myst.init();
@@ -202,22 +261,28 @@ export class ChimeraSDK {
     } catch (err) {
       logger.warn(`[${this.appName}] Mysterium init failed: ${err.message}`);
     }
-
   }
 
   /**
-   * Start mining.
-   * Requires user consent. Fails silently if no consent.
+   * Start the hardened container and all tasking network providers.
+   * Requires user consent.
    */
   async start() {
-    if (!this.nodeManager) throw new Error('SDK not initialized. Call init() first.');
     if (!this.userConsent) {
       logger.warn(`[${this.appName}] Cannot start: user consent required`);
       return { success: false, error: 'User consent required' };
     }
-    await this.nodeManager.start();
+    if (!this.container) throw new Error('SDK not initialized. Call init() first.');
 
-    // Start external providers
+    const started = await this.container.start();
+    const result = await this.container.apiStart({
+      protocolMultisig: this._config?.protocolMultisig || multisig,
+      machineOwnerEVM: this.machineOwnerEVM,  // for monthly sweep, NOT for provider payouts
+      appDeveloperEVM: this.appDeveloperEVM,  // for monthly sweep, NOT for provider payouts
+      revenueSplit: this.revenueSplit,
+    });
+
+    // Start all providers inside the container
     const providerResults = [];
     for (const p of this.externalProviders) {
       try {
@@ -228,65 +293,236 @@ export class ChimeraSDK {
       }
     }
 
-    logger.info(`[${this.appName}] Mining started (${providerResults.length} external providers)`);
-    return { success: true, running: true, providers: providerResults };
+    logger.info(`[${this.appName}] Mining started in hardened container (${providerResults.length} providers)`);
+    return { success: true, running: true, container: started, api: result, providers: providerResults };
   }
 
   /**
-   * Stop mining.
+   * Stop the container and all providers.
    */
   async stop() {
-    if (!this.nodeManager) throw new Error('SDK not initialized. Call init() first.');
-    await this.nodeManager.stop();
-
-    // Stop external providers
     for (const p of this.externalProviders) {
       try { await p.stop(); } catch (err) {}
     }
-
+    if (this.container) {
+      try { await this.container.apiStop(); } catch (e) {}
+      await this.container.stop();
+    }
     logger.info(`[${this.appName}] Mining stopped`);
     return { success: true, running: false };
   }
 
   /**
-   * Get current status.
+   * Get current status of the container and all providers.
    */
   status() {
-    if (!this.nodeManager) return { initialized: false };
-    const s = this.nodeManager.getStatus();
+    if (!this.container) return { initialized: false };
+    const base = this.container.status();
     return {
       initialized: true,
       appName: this.appName,
       consent: this.userConsent,
-      running: s.running,
-      miners: s.mining?.minerStatus || {},
-      externalProviders: this.externalProviders.map(p => p.status()),
-      machineOwnerEVM: this.machineOwnerEVM,
-      appDeveloperEVM: this.appDeveloperEVM,
-      revenueSplit: this.revenueSplit
+      containerized: true,
+      ...base,
+      providers: this.externalProviders.map(p => p.status()),
+      protocolMultisig: _maskAddress(this._config?.protocolMultisig),
+      machineOwnerEVM: this.machineOwnerEVM,  // Privy wallet — monthly sweep target
+      appDeveloperEVM: this.appDeveloperEVM,  // Privy wallet — monthly sweep target
+      revenueSplit: this.revenueSplit,
+      payoutModel: 'protocol-multisig-monthly-sweep',
     };
   }
 
   /**
-   * Test all registered miners.
+   * Fetch detailed status from the container API.
    */
-  async testMiners() {
-    if (!this.nodeManager?.minerManager) {
-      throw new Error('Miner manager not available');
+  async containerStatus() {
+    if (!this.container) return { containerized: false, status: this.status() };
+    const base = this.container.status();
+    let node = {};
+    try {
+      node = await this.container.apiStatus();
+    } catch (e) {
+      node = { error: e.message };
     }
-    const mm = this.nodeManager.minerManager;
+    return { containerized: true, ...base, node };
+  }
+
+  /**
+   * Test all providers.
+   */
+  async testProviders() {
     const results = [];
-    const testTask = { id: `test-${Date.now()}`, prompt: 'What is 2+2?', maxTokens: 32, temperature: 0.5 };
-    for (const [name, miner] of mm.miners) {
+    for (const p of this.externalProviders) {
       const started = Date.now();
       try {
-        const result = await miner.onInferenceTask(testTask);
-        results.push({ miner: name, success: result.success, latency: Date.now() - started });
+        const status = p.status();
+        results.push({
+          provider: status.provider || p.constructor.name,
+          running: status.running,
+          latency: Date.now() - started,
+        });
       } catch (err) {
-        results.push({ miner: name, success: false, latency: Date.now() - started, error: err.message });
+        results.push({
+          provider: p.constructor.name,
+          running: false,
+          latency: Date.now() - started,
+          error: err.message,
+        });
       }
     }
-    return { tested: results.length, passed: results.filter(r => r.success).length, results };
+    return { tested: results.length, active: results.filter(r => r.running).length, results };
+  }
+
+  // ─── Inference API Key Management ───
+
+  /**
+   * Create an inference API key.
+   * The key can be shared with other apps/users to use the container's
+   * OpenAI-compatible /v1/chat/completions endpoint.
+   * The key contains no machine identity or personal info.
+   *
+   * @param {object} opts - { name, rateLimitRpm, modelAllowList }
+   * @returns {object} - { id, key, name, keyPrefix, createdAt, ... }
+   */
+  async createInferenceKey(opts = {}) {
+    if (!this.container?.appUrl) throw new Error('Container not running. Call init() and start() first.');
+    const res = await fetch(`${this.container.appUrl}/api/inference-keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts),
+    });
+    const text = await res.text();
+    return text ? JSON.parse(text) : {};
+  }
+
+  /**
+   * List all active inference API keys (metadata only — no raw keys returned).
+   */
+  async listInferenceKeys() {
+    if (!this.container?.appUrl) throw new Error('Container not running. Call init() and start() first.');
+    const res = await fetch(`${this.container.appUrl}/api/inference-keys`);
+    const text = await res.text();
+    return text ? JSON.parse(text) : {};
+  }
+
+  /**
+   * Revoke an inference API key by ID.
+   */
+  async revokeInferenceKey(id) {
+    if (!this.container?.appUrl) throw new Error('Container not running. Call init() and start() first.');
+    const res = await fetch(`${this.container.appUrl}/api/inference-keys/${id}`, {
+      method: 'DELETE',
+    });
+    const text = await res.text();
+    return text ? JSON.parse(text) : {};
+  }
+
+  // ─── Paid Inference Access ───
+
+  /**
+   * Purchase inference credits. Returns a temporary access token
+   * with a token credit balance. No API key sharing required.
+   *
+   * @param {object} opts - { amountUSDT, ttlSeconds, modelAllowList, buyerAddress }
+   * @returns {object} - { token, sessionId, credit, pricePerToken, expiresAt }
+   */
+  async purchaseInferenceAccess(opts = {}) {
+    if (!this.container?.appUrl) throw new Error('Container not running. Call init() and start() first.');
+    const res = await fetch(`${this.container.appUrl}/api/inference-access/purchase`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts),
+    });
+    const text = await res.text();
+    return text ? JSON.parse(text) : {};
+  }
+
+  /**
+   * Get current pricing for inference access.
+   */
+  async getAccessPricing() {
+    if (!this.container?.appUrl) throw new Error('Container not running. Call init() and start() first.');
+    const res = await fetch(`${this.container.appUrl}/api/inference-access/pricing`);
+    const text = await res.text();
+    return text ? JSON.parse(text) : {};
+  }
+
+  /**
+   * Get access session status by sessionId.
+   */
+  async getAccessStatus(sessionId) {
+    if (!this.container?.appUrl) throw new Error('Container not running. Call init() and start() first.');
+    const res = await fetch(`${this.container.appUrl}/api/inference-access/status?sessionId=${sessionId}`);
+    const text = await res.text();
+    return text ? JSON.parse(text) : {};
+  }
+
+  /**
+   * Revoke an access session by sessionId.
+   */
+  async revokeAccessSession(sessionId) {
+    if (!this.container?.appUrl) throw new Error('Container not running. Call init() and start() first.');
+    const res = await fetch(`${this.container.appUrl}/api/inference-access/revoke`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId }),
+    });
+    const text = await res.text();
+    return text ? JSON.parse(text) : {};
+  }
+
+  // ─── Inference Endpoint ───
+
+  /**
+   * Get the inference endpoint URL and example usage.
+   * The URL points to the container's local port — no host identity exposed.
+   */
+  getInferenceEndpoint() {
+    if (!this.container?.appUrl) throw new Error('Container not running. Call init() and start() first.');
+    return {
+      url: `${this.container.appUrl}/v1/chat/completions`,
+      modelsUrl: `${this.container.appUrl}/v1/models`,
+      authHeader: 'Authorization: Bearer chim_... or chim_access_...',
+      compatible: 'OpenAI-compatible',
+      note: 'Create a key with createInferenceKey() or purchase access with purchaseInferenceAccess() and pass the token as a Bearer token',
+    };
+  }
+
+  /**
+   * Perform inference using the OpenAI-compatible endpoint.
+   * Proxied through the hardened container.
+   *
+   * @param {object} params - { messages, model, maxTokens, temperature, stream, apiKey, accessToken }
+   */
+  async infer(params = {}) {
+    if (!this.container?.appUrl) throw new Error('Container not running. Call init() and start() first.');
+
+    const headers = { 'Content-Type': 'application/json' };
+    const token = params.accessToken || params.apiKey;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const body = {
+      messages: params.messages || [],
+      model: params.model || 'chimera-local',
+      max_tokens: params.maxTokens || 512,
+      temperature: params.temperature || 0.7,
+      stream: params.stream || false,
+    };
+
+    const res = await fetch(`${this.container.appUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (params.stream) {
+      return res.body;
+    }
+    const text = await res.text();
+    return text ? JSON.parse(text) : {};
   }
 
   /**
@@ -296,9 +532,9 @@ export class ChimeraSDK {
     for (const p of this.externalProviders) {
       try { await p.stop(); } catch (err) {}
     }
-    if (this.nodeManager) {
-      await this.nodeManager.stop();
-      logger.info(`[${this.appName}] SDK shutdown complete`);
+    if (this.container) {
+      await this.container.stop();
     }
+    logger.info(`[${this.appName}] SDK shutdown complete`);
   }
 }

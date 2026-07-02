@@ -9,6 +9,5 @@ export { BttAiMinerProvider } from './BttAiMinerProvider.js';
 export { GolemProvider } from './GolemProvider.js';
 export { AnyoneProtocolProvider } from './AnyoneProtocolProvider.js';
 export { MysteriumProvider } from './MysteriumProvider.js';
-export { EarnidleProvider } from './EarnidleProvider.js';
 export { CasperProvider } from './CasperProvider.js';
 export { BtfsStorageProvider } from './BtfsStorageProvider.js';

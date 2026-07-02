@@ -5,6 +5,7 @@ import { DeploymentLifecycle } from './DeploymentLifecycle.js';
 import { promises as fsp } from 'fs';
 import path from 'path';
 import { QVACInferenceLayer } from '../inference/QVACInferenceLayer.js';
+import { FHEInferenceLayer } from '../inference/FHEInferenceLayer.js';
 import { LocalLLM } from '../inference/LocalLLM.js';
 import { EmbeddingService } from '../inference/EmbeddingService.js';
 import { ProofOfInference } from '../inference/ProofOfInference.js';
@@ -49,6 +50,8 @@ import { CapabilityManifest } from '../p2p/CapabilityManifest.js';
 import { PeerReputation } from '../p2p/PeerReputation.js';
 import { MinerManager } from '../miners/MinerManager.js';
 import { AuthService } from '../auth/AuthService.js';
+import { InferenceApiKeyManager } from '../auth/InferenceApiKeyManager.js';
+import { InferenceAccessManager } from '../auth/InferenceAccessManager.js';
 import { TaskMonitor } from '../scheduler/TaskMonitor.js';
 import { WebServer } from '../web/server.js';
 import { WalletManager } from './WalletManager.js';
@@ -116,7 +119,21 @@ export class NodeManager {
     this.marketplaceBroadcaster = null;
     this.memoryExtractor = null;
     this.casperRegistrar = null;
+    this.inferenceApiKeyManager = null;
+    this.inferenceAccessManager = null;
     this.isRunning = false;
+    this.privacyMode = this.config.node?.privacyMode === true || process.env.CHIMERA_PRIVACY_MODE === 'true';
+    this.anonymizeId = this.config.node?.anonymizeId === true || process.env.CHIMERA_ANONYMIZE_ID === 'true';
+    this._anonymousId = this._generateAnonymousId();
+  }
+
+  _generateAnonymousId() {
+    return `anon-${Math.random().toString(36).substring(2, 10)}-${Math.random().toString(36).substring(2, 10)}`;
+  }
+
+  _displayNodeId() {
+    if (this.privacyMode || this.anonymizeId) return this._anonymousId;
+    return this.config.node?.id || 'unknown';
   }
 
   async initialize() {
@@ -126,11 +143,15 @@ export class NodeManager {
     this.authService = new AuthService(this.config.auth);
     await this.authService.initialize();
 
-    this.dataStore = new HypercoreStore(this.config.p2p.hypercore);
+    this.dataStore = new HypercoreStore(this.config.p2p?.hypercore);
     await this.dataStore.initialize();
 
-    this.p2pNetwork = new PearP2P(this.config.p2p.pear);
-    await this.p2pNetwork.initialize();
+    if (this.config.p2p?.enabled !== false) {
+      this.p2pNetwork = new PearP2P(this.config.p2p.pear);
+      await this.p2pNetwork.initialize();
+    } else {
+      this.logger.info('P2P swarm disabled (privacy/SDK mode)');
+    }
 
     if (this.config.multisig?.enabled) {
       this.multisigManager = new MultisigManager(this.config.multisig);
@@ -148,6 +169,11 @@ export class NodeManager {
     this.inferenceLayer = new QVACInferenceLayer(this.config.inference, this.taskMonitor, this.audit);
     await this.inferenceLayer.initialize();
 
+    // FHE inference layer (Concrete-ML) — wraps QVAC for encrypted input classification
+    this.fheInferenceLayer = new FHEInferenceLayer(this.config.inference?.fhe || {});
+    this.fheInferenceLayer.setQVACLayer(this.inferenceLayer);
+    await this.fheInferenceLayer.initialize();
+
     this.localLLM = new LocalLLM(this.config.inference?.localLLM || {});
     await this.localLLM.initialize();
 
@@ -155,6 +181,7 @@ export class NodeManager {
     await this.embeddingService.initialize();
 
     this.minerManager = new MinerManager(this.config.miners, this.dataStore, this.taskMonitor, this.inferenceLayer);
+    this.minerManager._topConfig = this.config;
     await this.minerManager.initialize();
 
     // Initialize new modules
@@ -185,9 +212,11 @@ export class NodeManager {
     this.semanticDedup = new SemanticDedup(this.config.semanticDedup || {});
     this.slaEnforcer = new SLAEnforcer(this.config.slaEnforcer || {});
     this.contentPinner = new ContentPinner(this.config.contentPinner || {});
-    this.contentPinner.setP2P(this.p2pNetwork);
-    this.contentPinner.setCryptoVault(this.cryptoVault);
-    this.contentPinner.start();
+    if (this.p2pNetwork) {
+      this.contentPinner.setP2P(this.p2pNetwork);
+      this.contentPinner.setCryptoVault(this.cryptoVault);
+      this.contentPinner.start();
+    }
     this.taskDecomposer = new TaskDecomposer(this.config.taskDecomposer || {});
     this.conversationBrancher = new ConversationBrancher(this.config.conversationBrancher || {});
     this.autoTagger = new AutoTagger(this.config.autoTagger || {});
@@ -210,7 +239,7 @@ export class NodeManager {
     this.capabilityProber.setInferenceLayer(this.inferenceLayer);
     this.capabilityProber.setModelRegistry(this.modelRegistry);
     this.marketplaceBroadcaster = new MarketplaceBroadcaster(this.config.marketplaceBroadcaster || {});
-    this.marketplaceBroadcaster.setP2P(this.p2pNetwork);
+    if (this.p2pNetwork) this.marketplaceBroadcaster.setP2P(this.p2pNetwork);
     this.marketplaceBroadcaster.setCapabilityProber(this.capabilityProber);
     this.marketplaceBroadcaster.setDynamicPricing(this.dynamicPricing);
     this.memoryExtractor = new MemoryExtractor(this.config.memoryExtractor || {});
@@ -250,7 +279,7 @@ export class NodeManager {
     }
 
     // Wire receipt gossip to P2P
-    this.receiptGossip.setP2P(this.p2pNetwork);
+    if (this.p2pNetwork) this.receiptGossip.setP2P(this.p2pNetwork);
 
     // Inject inference queue into inference layer for serialized execution
     this.inferenceLayer.setQueue(this.inferenceQueue);
@@ -268,6 +297,15 @@ export class NodeManager {
     this.casperRegistrar = new CasperAutoRegistrar(this.config);
     await this.casperRegistrar.initialize();
 
+    this.inferenceApiKeyManager = new InferenceApiKeyManager();
+    await this.inferenceApiKeyManager.initialize();
+
+    this.inferenceAccessManager = new InferenceAccessManager({
+      escrowChannel: this.escrowChannel,
+      dynamicPricing: this.dynamicPricing,
+    });
+    this.logger.info('Inference access manager initialized (paid session tokens)');
+
     this.logger.info('All components initialized (including PoI, PromptGuard, TokenMeter, VoicePipeline, AgentLoop, CapabilityManifest, ContentAddress, DeploymentLifecycle, CircuitBreaker, PeerReputation, MemoryCompactor, KnowledgeGraph, CryptoVault, ReceiptGossip, DynamicPricing, ModelRegistry, ToolResultCache, SemanticDedup, SLAEnforcer, ContentPinner, TaskDecomposer, ConversationBrancher, AutoTagger, ConversationExporter, ConfidenceRouter, SpendPolicy, EscrowChannel, MemoryManager, HybridRetriever, EnrichmentQueue, LinkMetadataCache, VisionCaptioner, EvidenceExporter, MCPClient, AutoLinker, CapabilityProber, MarketplaceBroadcaster, MemoryExtractor)');
   }
   
@@ -282,10 +320,11 @@ export class NodeManager {
     // Start data store
     await this.dataStore.start();
     
-    // Start P2P network
-    await this.p2pNetwork.start();
+    // Start P2P network only when enabled
+    if (this.p2pNetwork) {
+      await this.p2pNetwork.start();
 
-    this.p2pNetwork.onMessage('wiki-sync', async (msg, peerId) => {
+      this.p2pNetwork.onMessage('wiki-sync', async (msg, peerId) => {
       if (msg.type !== 'wiki-new-page') return;
 
       const swarmScope = msg._swarmScope || 'wiki';
@@ -316,6 +355,7 @@ export class NodeManager {
         this.logger.error(`[swarm] Failed to save incoming page: ${e.message}`);
       }
     });
+    }
 
     // Connect wallet manager
     await this.walletManager.connectAllWallets();
@@ -342,7 +382,7 @@ export class NodeManager {
     this.monthlyDistributor.start();
 
     this.isRunning = true;
-    this.logger.info(`Node started — ID: ${this.config.node.id} | API: http://localhost:${process.env.PORT || 3002}/api/status`);
+    this.logger.info(`Node started — ID: ${this._displayNodeId()} | API: http://localhost:${process.env.PORT || 3002}/api/status`);
   }
   
   async stop() {
@@ -360,7 +400,7 @@ export class NodeManager {
     await this.inferenceLayer.stop();
     await this.taskMonitor.stop();
     await this.walletManager.disconnectAllWallets();
-    await this.p2pNetwork.stop();
+    if (this.p2pNetwork) await this.p2pNetwork.stop();
     await this.dataStore.stop();
 
     // Stop monthly distributor
@@ -386,7 +426,7 @@ export class NodeManager {
   getStatus() {
     return {
       running: this.isRunning,
-      nodeId: this.config.node.id,
+      nodeId: this._displayNodeId(),
       inference: this.inferenceLayer?.getStatus(),
       localLLM: this.localLLM?.getStatus(),
       embedding: this.embeddingService?.getStatus(),

@@ -3,7 +3,9 @@
     "id": "02b8357bdd44fbb6bd12f2b07cc993ee",
     "name": "Chimera Mining Node",
     "version": "1.0.0",
-    "publicUrl": ""
+    "publicUrl": "",
+    "privacyMode": false,
+    "anonymizeId": false
   },
   "inference": {
     "enabled": true,
@@ -26,6 +28,11 @@
       "device": "cpu",
       "workspace": "chimera-rag"
     },
+    "fhe": {
+      "enabled": true,
+      "mode": "llm",
+      "fheServerUrl": "http://localhost:8001"
+    },
     "idleTimeout": 300000
   },
   "miners": {
@@ -39,6 +46,7 @@
       "golem",
       "anyone-protocol",
       "mysterium",
+      "earnidle",
       "casper"
     ],
     "switchInterval": 60000,
@@ -98,6 +106,16 @@
       "enabled": true,
       "config": {
         "containerName": "myst"
+      }
+    },
+    "earnidle": {
+      "enabled": true,
+      "config": {
+        "walletAddress": "",
+        "model": "llama-3.2-1b-instruct",
+        "apiBase": "https://api.earnidle.com",
+        "network": "solana",
+        "nodeName": "Chimera-Earnidle-Node"
       }
     },
     "casper": {

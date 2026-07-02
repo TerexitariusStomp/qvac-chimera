@@ -98,10 +98,20 @@ export class BtfsStorageProvider {
   }
 
   async init() {
-    try {
-      execSync('docker --version', { stdio: 'ignore' });
-    } catch {
-      throw new Error('Docker not available. BTFS provider requires Docker to run the go-btfs daemon.');
+    this.inContainer = process.env.CHIMERA_PRIVACY_MODE === 'true';
+
+    if (this.inContainer) {
+      try {
+        execSync('which btfs', { stdio: 'ignore' });
+      } catch {
+        throw new Error('btfs binary not found in container. Install in Dockerfile.');
+      }
+    } else {
+      try {
+        execSync('docker --version', { stdio: 'ignore' });
+      } catch {
+        throw new Error('Docker not available. BTFS provider requires Docker to run the go-btfs daemon.');
+      }
     }
     if (!this.relayUrl && !this.signer) {
       throw new Error('CASPER_RELAY_URL or a signer callback is required. The provider never holds the private key.');
@@ -170,18 +180,29 @@ export class BtfsStorageProvider {
     }
     await this._ensureRepo();
     return new Promise((resolve) => {
-      logger.info('Starting walletless BTFS daemon via Docker...');
-      this.process = spawn('docker', [
-        'run', '--rm',
-        '-p', '5001:5001',
-        '-p', '4001:4001',
-        '-p', '4001:4001/udp',
-        '-v', `${this.repoPath}:/data/btfs`,
-        '-e', 'BTFS_PATH=/data/btfs',
-        BTFS_IMAGE,
-        'daemon',
-        '--enable-storage-host=false',
-      ]);
+      if (this.inContainer) {
+        logger.info('Starting BTFS daemon (inline)...');
+        this.process = spawn('btfs', [
+          'daemon',
+          '--enable-storage-host=false',
+        ], {
+          env: { ...process.env, BTFS_PATH: this.repoPath },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+      } else {
+        logger.info('Starting walletless BTFS daemon via Docker...');
+        this.process = spawn('docker', [
+          'run', '--rm',
+          '-p', '5001:5001',
+          '-p', '4001:4001',
+          '-p', '4001:4001/udp',
+          '-v', `${this.repoPath}:/data/btfs`,
+          '-e', 'BTFS_PATH=/data/btfs',
+          BTFS_IMAGE,
+          'daemon',
+          '--enable-storage-host=false',
+        ]);
+      }
       this.running = true;
       const appendLog = (level, data) => {
         const line = data.toString().trim();
@@ -212,11 +233,15 @@ export class BtfsStorageProvider {
     await fs.mkdir(this.repoPath, { recursive: true });
     const initialized = await fs.access(path.join(this.repoPath, 'config')).then(() => true).catch(() => false);
     if (!initialized) {
-      logger.info('Initializing walletless BTFS repo...');
+      logger.info('Initializing BTFS repo...');
       try {
-        execSync(`docker run --rm -v "${this.repoPath}:/data/btfs" -e BTFS_PATH=/data/btfs ${BTFS_IMAGE} init`, { stdio: 'ignore' });
+        if (this.inContainer) {
+          execSync(`btfs init`, { stdio: 'ignore', env: { ...process.env, BTFS_PATH: this.repoPath } });
+        } else {
+          execSync(`docker run --rm -v "${this.repoPath}:/data/btfs" -e BTFS_PATH=/data/btfs ${BTFS_IMAGE} init`, { stdio: 'ignore' });
+        }
       } catch {
-        throw new Error(`Failed to initialize BTFS repo with ${BTFS_IMAGE}. Ensure Docker can pull the image.`);
+        throw new Error('Failed to initialize BTFS repo. Ensure btfs binary or Docker image is available.');
       }
     }
   }

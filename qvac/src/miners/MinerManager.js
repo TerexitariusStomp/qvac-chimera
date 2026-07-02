@@ -2,6 +2,13 @@ import { Logger } from '../core/Logger.js';
 import { ChutesMiner } from './ChutesMiner.js';
 import { RoutstrMiner } from './RoutstrMiner.js';
 import { CasperEscrowBridge } from './CasperEscrowBridge.js';
+import { EarnidleMiner } from './EarnidleMiner.js';
+import { SdkProviderMiner } from './SdkProviderMiner.js';
+import { GolemProvider } from '../../sdk/src/miners/GolemProvider.js';
+import { MysteriumProvider } from '../../sdk/src/miners/MysteriumProvider.js';
+import { AnyoneProtocolProvider } from '../../sdk/src/miners/AnyoneProtocolProvider.js';
+import { BttAiMinerProvider } from '../../sdk/src/miners/BttAiMinerProvider.js';
+import { BtfsStorageProvider } from '../../sdk/src/miners/BtfsStorageProvider.js';
 
 export class MinerManager {
   constructor(config, dataStore, taskMonitor = null, inferenceLayer = null) {
@@ -53,6 +60,50 @@ export class MinerManager {
       const miner = new CasperUnifiedBridge(this.config.casperUnified.config, layers);
       await miner.initialize();
       this.miners.set('casperUnified', miner);
+    }
+
+    // ─── Tasker Network Providers (via SdkProviderMiner wrapper) ───
+    // Each provider handles container mode internally (inline binary vs Docker)
+
+    if (this.config.golem?.enabled) {
+      const miner = new SdkProviderMiner('golem', GolemProvider, this.config.golem.config || {}, this.inferenceLayer, this.evmAddress);
+      await miner.initialize();
+      this.miners.set('golem', miner);
+    }
+
+    if (this.config.mysterium?.enabled) {
+      const miner = new SdkProviderMiner('mysterium', MysteriumProvider, this.config.mysterium.config || {}, this.inferenceLayer, this.evmAddress);
+      await miner.initialize();
+      this.miners.set('mysterium', miner);
+    }
+
+    if (this.config['anyone-protocol']?.enabled) {
+      const miner = new SdkProviderMiner('anyone-protocol', AnyoneProtocolProvider, this.config['anyone-protocol'].config || {}, this.inferenceLayer, this.evmAddress);
+      await miner.initialize();
+      this.miners.set('anyone-protocol', miner);
+    }
+
+    if (this.config.bttAi?.enabled) {
+      const miner = new SdkProviderMiner('btt-ai', BttAiMinerProvider, this.config.bttAi.config || {}, this.inferenceLayer, this.evmAddress);
+      await miner.initialize();
+      this.miners.set('btt-ai', miner);
+    }
+
+    if (this.config.btfs?.enabled) {
+      const btfsConfig = { ...(this.config.btfs.config || {}) };
+      // Merge top-level btfs config (apiUrl, repoPath, rpcUrl, relayUrl, etc.)
+      if (this._topConfig?.btfs) {
+        Object.assign(btfsConfig, this._topConfig.btfs);
+      }
+      const miner = new SdkProviderMiner('btfs', BtfsStorageProvider, btfsConfig, this.inferenceLayer, this.evmAddress);
+      await miner.initialize();
+      this.miners.set('btfs', miner);
+    }
+
+    if (this.config.earnidle?.enabled) {
+      const miner = new EarnidleMiner(this.config.earnidle.config || {}, this.inferenceLayer);
+      await miner.initialize();
+      this.miners.set('earnidle', miner);
     }
 
     this.logger.info(`Initialized ${this.miners.size} miners`);

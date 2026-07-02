@@ -162,7 +162,7 @@ def generate_popup(org):
     
     if org.get('address'):
         addr = html.escape(str(org['address']))
-        parts.append('<div style="margin:4px 0;font-size:11px;color:#555;\\"><i class=\\"fas fa-map-marker-alt\\" style=\\"color:#e74c3c;\\"></i> ' + addr[:150] + '</div>')
+        parts.append('<div style="margin:4px 0;font-size:11px;color:#555;"><i class="fas fa-map-marker-alt" style="color:#e74c3c;"></i> ' + addr[:150] + '</div>')
     
     lines = []
     if org.get('city') or org.get('region') or org.get('country'):
@@ -173,11 +173,11 @@ def generate_popup(org):
             location_parts.append(html.escape(str(org['region'])))
         if org.get('country'):
             location_parts.append(html.escape(str(org['country'])))
-        parts.append('<div style="margin:2px 0;font-size:11px;color:#666;font-style:italic;\\">' + ', '.join(location_parts) + '</div>')
+        parts.append('<div style="margin:2px 0;font-size:11px;color:#666;font-style:italic;">' + ', '.join(location_parts) + '</div>')
     
     lines = []
     if org.get('website'):
-        lines.append('<a href=\\"' + html.escape(org['website']) + '\\" target=\\"_blank\\" style=\\"color:#007bff;text-decoration:none;\\">Website</a>')
+        lines.append('<a href="' + html.escape(org['website']) + '" target="_blank" rel="noopener noreferrer" style="color:#007bff;text-decoration:none;">Website</a>')
     if org['email']:
         lines.append('<a href="mailto:' + html.escape(org['email']) + '" style="color:#007bff;">Email</a>')
     if org['phone']:
@@ -239,8 +239,7 @@ def organizations_geojson():
     features = []
     for org in orgs:
         org_dict = dict(org)
-        phtml = org_dict.get('popup_html') or ''
-        popup_html = phtml if phtml else generate_popup(org_dict)
+        popup_html = generate_popup(org_dict)
 
         features.append({
             "type": "Feature",

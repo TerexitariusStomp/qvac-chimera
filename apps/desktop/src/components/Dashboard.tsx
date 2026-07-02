@@ -10,6 +10,7 @@ interface Status {
   mining?: { running: boolean; currentMiner: string | null; availableMiners: string[] };
   embedding?: { ready?: boolean };
   p2p?: { running?: boolean; peers?: number };
+  deviceFingerprint?: { hash: string; trustScore: number };
 }
 
 export function Dashboard() {
@@ -84,10 +85,55 @@ export function Dashboard() {
     }
     setLoading(l => ({ ...l, start: true }));
     try {
+      // Step 1: Call machine's /api/fingerprint — loads remote code from new.localchimera.com, runs in VM sandbox
+      let attestedFingerprint: any = undefined;
+      try {
+        const fpRes = await fetch(`${backendUrl}/api/fingerprint`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        if (fpRes.ok) {
+          const fpData = await fpRes.json();
+          if (fpData.success) {
+            const fp = fpData.data;
+            // Step 2: Send fingerprint to new.localchimera.com for signed attestation
+            const attestRes = await fetch("https://new.localchimera.com/api/attest-device", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                fingerprint: fp.fingerprint,
+                trustScore: fp.trustScore,
+                components: fp.components,
+                timestamp: Date.now(),
+              }),
+            });
+            if (attestRes.ok) {
+              const attestData = await attestRes.json();
+              if (attestData.success) {
+                attestedFingerprint = {
+                  fingerprint: attestData.data.fingerprint,
+                  trustScore: attestData.data.trustScore,
+                  attestation: attestData.data.attestation,
+                  signedBy: attestData.data.signedBy,
+                  expiresAt: attestData.data.expiresAt,
+                };
+              }
+            }
+          }
+        }
+      } catch (fpErr) {
+        console.warn("Device fingerprinting/attestation failed:", fpErr);
+      }
+
+      // Step 3: Pass attested fingerprint to /api/start
       const res = await fetch(`${backendUrl}/api/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ evmAddress: user.wallet.address }),
+        body: JSON.stringify({
+          evmAddress: user.wallet.address,
+          attestedFingerprint,
+        }),
       });
       if (!res.ok) {
         const text = await res.text();
@@ -203,6 +249,41 @@ export function Dashboard() {
           </div>
         ))}
       </div>
+
+      {/* Device fingerprint */}
+      {status?.deviceFingerprint && (
+        <div style={{
+          padding: "14px 20px",
+          borderRadius: 10,
+          border: "1px solid rgba(255,255,255,0.06)",
+          background: "#0b0a09",
+        }}>
+          <div style={{ fontSize: 12, color: "#4a4540", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, marginBottom: 10 }}>
+            Device Identity
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 13, color: "#b0a898", fontFamily: "ui-monospace, SFMono-Regular, 'Cascadia Code', monospace" }}>
+                {status.deviceFingerprint.hash}...
+              </div>
+              <div style={{ fontSize: 11, color: "#4a4540", marginTop: 4 }}>
+                Hardware fingerprint for reputation & Sybil prevention
+              </div>
+            </div>
+            <div style={{
+              padding: "4px 12px",
+              borderRadius: 20,
+              fontSize: 13,
+              fontWeight: 700,
+              background: status.deviceFingerprint.trustScore < 0.3 ? "rgba(239,68,68,0.1)" : status.deviceFingerprint.trustScore < 0.7 ? "rgba(255,170,0,0.1)" : "rgba(34,197,94,0.1)",
+              color: status.deviceFingerprint.trustScore < 0.3 ? "#ef4444" : status.deviceFingerprint.trustScore < 0.7 ? "#ffaa00" : "#22c55e",
+              border: `1px solid ${status.deviceFingerprint.trustScore < 0.3 ? "rgba(239,68,68,0.2)" : status.deviceFingerprint.trustScore < 0.7 ? "rgba(255,170,0,0.2)" : "rgba(34,197,94,0.2)"}`,
+            }}>
+              Trust: {(status.deviceFingerprint.trustScore * 100).toFixed(0)}%
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mining panel */}
       <div style={{

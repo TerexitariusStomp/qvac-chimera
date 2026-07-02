@@ -349,11 +349,11 @@ export class CasperProvider {
           source: 'casper-relay',
         });
         if (result && result.success) {
-          this.logger.info('Inference completed via QVAC inference layer');
+          this.logger.info('Inference completed via Chimera inference layer');
           return result;
         }
       } catch (e) {
-        this.logger.warn(`QVAC inference failed: ${e.message}`);
+        this.logger.warn(`Chimera inference failed: ${e.message}`);
       }
     }
 

@@ -1,20 +1,21 @@
 /**
  * @chimera/sdk — Main entry point
  *
- * Re-exports everything a headless / backend consumer needs:
- *   - ChimeraSDK
- *   - Untrusted-hardware-safe miner providers only
+ * Tasking network provider SDK. Exports only the providers and orchestrator
+ * needed to participate in decentralized compute, storage, bandwidth, and
+ * inference networks. No QVAC/OpenViking/LLM-wiki components.
  *
- * React hook: import { useChimera } from '@chimera/sdk/src/useChimera.js'
+ * React hook: import { useChimera } from '@chimera/sdk'
  */
 
 export { ChimeraSDK } from './ChimeraSDK.js';
+export { PrivacyContainer } from './runtime/PrivacyContainer.js';
+export { useChimera, ChimeraPrivyProvider } from './useChimera.js';
 export {
   BttAiMinerProvider,
   GolemProvider,
   AnyoneProtocolProvider,
   MysteriumProvider,
-  EarnidleProvider,
   CasperProvider,
   BtfsStorageProvider,
 } from './miners/index.js';

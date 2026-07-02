@@ -67,7 +67,7 @@ export class PayoutRouter {
 
   // ─── User Registration ───
 
-  async registerUser({ userId, machineOwnerEVM, appId }) {
+  async registerUser({ userId, machineOwnerEVM, appId, deviceFingerprint = null, deviceTrustScore = 0 }) {
     if (!userId || !machineOwnerEVM || !appId) {
       return { success: false, error: 'userId, machineOwnerEVM, and appId required' };
     }
@@ -81,18 +81,23 @@ export class PayoutRouter {
     }
 
     const users = await this.store.getUsers();
+    const existing = users[userId] || {};
     users[userId] = {
       userId,
       machineOwnerEVM: machineOwnerEVM.toLowerCase(),
       appId,
       registeredAt: Date.now(),
       totalOrders: 0,
-      totalEarned: 0
+      totalEarned: 0,
+      deviceFingerprint: deviceFingerprint || existing.deviceFingerprint || null,
+      deviceTrustScore: deviceTrustScore ?? existing.deviceTrustScore ?? 0,
     };
-    apps[appId].userCount = (apps[appId].userCount || 0) + 1;
+    if (!existing.registeredAt) {
+      apps[appId].userCount = (apps[appId].userCount || 0) + 1;
+    }
     await this.store.saveUsers();
     await this.store.saveApps();
-    logger.info(`[payout] User registered: ${userId} → app: ${appId}, wallet: ${machineOwnerEVM}`);
+    logger.info(`[payout] User registered: ${userId} → app: ${appId}, wallet: ${machineOwnerEVM}, trust: ${(deviceTrustScore * 100).toFixed(0)}%`);
     return { success: true, user: users[userId] };
   }
 

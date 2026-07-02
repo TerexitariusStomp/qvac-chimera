@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -56,6 +58,12 @@ func dockerAvailable() bool {
 	return true
 }
 
+func randomHex(n int) string {
+	b := make([]byte, n)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
 func containerRunning() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -98,13 +106,19 @@ func startContainer() error {
 	defer cancel2()
 	cmd := exec.CommandContext(ctx2, "docker", "run", "-d",
 		"--name", ContainerName,
+		"--hostname", "chimera-"+randomHex(8),
+		"--network", "bridge",
+		"--security-opt", "no-new-privileges:true",
+		"--cap-drop", "ALL",
 		"-p", ContainerPort+":"+ContainerPort,
 		"-v", "chimera-data:/app/llmwiki-data",
 		"-v", "openviking-data:/app/.openviking",
+		"-v", "chimera-node-data:/app/data",
 		"-e", "NODE_ENV=production",
 		"-e", "PORT="+ContainerPort,
 		"-e", "OPENVIKING_URL=http://127.0.0.1:1933",
 		"-e", "OPENVIKING_API_KEY=chimera-local-dev-key",
+		"-e", "CHIMERA_PRIVACY_MODE=true",
 		ImageName,
 	)
 	out, err := cmd.CombinedOutput()

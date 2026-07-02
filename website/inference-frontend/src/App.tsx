@@ -16,9 +16,10 @@ import StorageHub from './components/StorageHub';
 import NetworkHealthTab from './components/NetworkHealthTab';
 import ReferralsTab from './components/ReferralsTab';
 import DeployTab from './components/DeployTab';
+import BrowserNodeTab from './components/BrowserNodeTab';
 import type { TxRecord } from './types';
 
-type Page = 'market' | 'machines' | 'completed' | 'tasker' | 'provider' | 'storage' | 'network' | 'referrals' | 'deploy';
+type Page = 'market' | 'machines' | 'completed' | 'tasker' | 'provider' | 'storage' | 'network' | 'referrals' | 'deploy' | 'browser-node';
 
 export default function App() {
   const [provider, setProvider] = useState<any>(null);
@@ -73,6 +74,7 @@ export default function App() {
           {/* Navigation Tabs */}
           <nav className="hidden md:flex items-center gap-1">
             {([
+              { id: 'browser-node', label: 'Browser Node' },
               { id: 'tasker', label: 'Tasker' },
               { id: 'provider', label: 'Provider' },
               { id: 'storage', label: 'Storage' },
@@ -162,6 +164,10 @@ export default function App() {
 
         {page === 'deploy' && (
           <DeployTab accountHash={accountHash} />
+        )}
+
+        {page === 'browser-node' && (
+          <BrowserNodeTab provider={provider} publicKeyHex={publicKeyHex} accountHash={accountHash} onTx={updateTx} />
         )}
       </main>
 

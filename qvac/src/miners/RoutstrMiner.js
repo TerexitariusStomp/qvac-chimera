@@ -63,6 +63,7 @@ export class RoutstrMiner {
 
   async initialize() {
     this.logger.info('Initializing Routstr miner...');
+    this.inContainer = process.env.CHIMERA_PRIVACY_MODE === 'true';
 
     // Ensure .env exists
     await this._ensureEnv();
@@ -77,19 +78,28 @@ export class RoutstrMiner {
       this.logger.warn('No nsec configured — cannot announce on Nostr');
     }
 
-    // Check Docker
-    const dockerOk = this._dockerAvailable();
-    if (!dockerOk) {
-      this.logger.warn('Docker not available — cannot start Routstr container');
+    if (this.inContainer) {
+      try {
+        execSync('which routstr', { stdio: 'ignore' });
+        this.logger.info('Routstr binary found — inline mode');
+      } catch {
+        this.logger.warn('Routstr binary not found in container — will try Docker compose if available');
+      }
     } else {
-      this.logger.info('Docker available');
-    }
+      // Check Docker
+      const dockerOk = this._dockerAvailable();
+      if (!dockerOk) {
+        this.logger.warn('Docker not available — cannot start Routstr container');
+      } else {
+        this.logger.info('Docker available');
+      }
 
-    // Check compose dir
-    if (!existsSync(this.composeDir)) {
-      this.logger.warn(`Routstr compose dir not found: ${this.composeDir}`);
-    } else {
-      this.logger.info(`Routstr compose dir: ${this.composeDir}`);
+      // Check compose dir
+      if (!existsSync(this.composeDir)) {
+        this.logger.warn(`Routstr compose dir not found: ${this.composeDir}`);
+      } else {
+        this.logger.info(`Routstr compose dir: ${this.composeDir}`);
+      }
     }
 
     this.logger.info(`Platform: ${this.platform}`);
@@ -163,44 +173,71 @@ RECEIVE_LN_ADDRESS=${this.receiveLnAddress}
   async start() {
     if (this.isRunning) { this.logger.warn('Already running'); return; }
 
-    if (!this._dockerAvailable()) {
-      this.logger.error('Docker not available — cannot start Routstr');
-      return;
-    }
+    if (this.inContainer) {
+      this.logger.info('Starting Routstr (inline mode)...');
+      try {
+        this._proc = spawn('routstr', ['--env-file', this.envFile], {
+          detached: false,
+          stdio: ['ignore', 'pipe', 'pipe']
+        });
 
-    if (!existsSync(this.composeDir)) {
-      this.logger.error(`Compose directory missing: ${this.composeDir}`);
-      return;
-    }
+        this._proc.stdout.on('data', (data) => {
+          const line = data.toString().trim();
+          if (line) this.logger.info(`[routstr] ${line}`);
+        });
+        this._proc.stderr.on('data', (data) => {
+          const line = data.toString().trim();
+          if (line) this.logger.warn(`[routstr] ${line}`);
+        });
+        this._proc.on('exit', (code) => {
+          this.logger.info(`routstr exited (code ${code})`);
+        });
 
-    this.logger.info('Starting Routstr container...');
+        await this._waitForReady();
+      } catch (e) {
+        this.logger.error(`Failed to start Routstr inline: ${e.message}`);
+        return;
+      }
+    } else {
+      if (!this._dockerAvailable()) {
+        this.logger.error('Docker not available — cannot start Routstr');
+        return;
+      }
 
-    // Pull latest image and start
-    try {
-      execSync('docker compose pull', { cwd: this.composeDir, stdio: 'ignore' });
-      this._proc = spawn('docker', ['compose', 'up', '-d'], {
-        cwd: this.composeDir,
-        detached: false,
-        stdio: ['ignore', 'pipe', 'pipe']
-      });
+      if (!existsSync(this.composeDir)) {
+        this.logger.error(`Compose directory missing: ${this.composeDir}`);
+        return;
+      }
 
-      this._proc.stdout.on('data', (data) => {
-        const line = data.toString().trim();
-        if (line) this.logger.info(`[routstr] ${line}`);
-      });
-      this._proc.stderr.on('data', (data) => {
-        const line = data.toString().trim();
-        if (line) this.logger.warn(`[routstr] ${line}`);
-      });
-      this._proc.on('exit', (code) => {
-        this.logger.info(`docker compose exited (code ${code})`);
-      });
+      this.logger.info('Starting Routstr container...');
 
-      // Wait for container to be ready
-      await this._waitForReady();
-    } catch (e) {
-      this.logger.error(`Failed to start Routstr: ${e.message}`);
-      return;
+      // Pull latest image and start
+      try {
+        execSync('docker compose pull', { cwd: this.composeDir, stdio: 'ignore' });
+        this._proc = spawn('docker', ['compose', 'up', '-d'], {
+          cwd: this.composeDir,
+          detached: false,
+          stdio: ['ignore', 'pipe', 'pipe']
+        });
+
+        this._proc.stdout.on('data', (data) => {
+          const line = data.toString().trim();
+          if (line) this.logger.info(`[routstr] ${line}`);
+        });
+        this._proc.stderr.on('data', (data) => {
+          const line = data.toString().trim();
+          if (line) this.logger.warn(`[routstr] ${line}`);
+        });
+        this._proc.on('exit', (code) => {
+          this.logger.info(`docker compose exited (code ${code})`);
+        });
+
+        // Wait for container to be ready
+        await this._waitForReady();
+      } catch (e) {
+        this.logger.error(`Failed to start Routstr: ${e.message}`);
+        return;
+      }
     }
 
     this.isRunning = true;

@@ -2,7 +2,13 @@
  * MysteriumProvider — Auto-setup and run Mysterium VPN node.
  *
  * Decentralized VPN node (Mysterium Network).
- * Docker-based, no keys required in SDK.
+ * No keys required in SDK.
+ *
+ * Two modes:
+ *   - Host mode (default): spawns `docker run mysteriumnetwork/myst:latest`
+ *   - Container mode (CHIMERA_PRIVACY_MODE=true): runs `myst` binary directly
+ *     inside the single Chimera container. The binary must be pre-installed
+ *     in the Dockerfile.
  */
 
 import { spawn, execSync } from 'child_process';
@@ -22,6 +28,18 @@ export class MysteriumProvider {
   }
 
   async init() {
+    this.inContainer = process.env.CHIMERA_PRIVACY_MODE === 'true';
+
+    if (this.inContainer) {
+      try {
+        execSync('which myst', { stdio: 'ignore' });
+      } catch {
+        throw new Error('myst binary not found in container. Install in Dockerfile.');
+      }
+      await fs.mkdir(this.dataDir, { recursive: true });
+      return;
+    }
+
     const exists = await fs.access(MYSTERIUM_DIR).then(() => true).catch(() => false);
     if (!exists) throw new Error('Mysterium node not found. Clone: git submodule add https://github.com/mysteriumnetwork/node.git upstream/mysterium');
 
@@ -40,16 +58,23 @@ export class MysteriumProvider {
     return new Promise((resolve) => {
       const env = { ...process.env };
 
-      this.process = spawn('docker', [
-        'run', '-d',
-        '--name', 'mysterium-node',
-        '--restart', 'unless-stopped',
-        '--cap-add', 'NET_ADMIN',
-        '-p', '5252:5252',
-        '-v', `${this.dataDir}:/var/lib/mysterium-node`,
-        'mysteriumnetwork/myst:latest',
-        'service', '--agreed-terms-and-conditions'
-      ], { cwd: MYSTERIUM_DIR, env });
+      if (this.inContainer) {
+        this.process = spawn('myst', [
+          'service', '--agreed-terms-and-conditions',
+          '--data-dir', this.dataDir,
+        ], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+      } else {
+        this.process = spawn('docker', [
+          'run', '-d',
+          '--name', 'mysterium-node',
+          '--restart', 'unless-stopped',
+          '--cap-add', 'NET_ADMIN',
+          '-p', '5252:5252',
+          '-v', `${this.dataDir}:/var/lib/mysterium-node`,
+          'mysteriumnetwork/myst:latest',
+          'service', '--agreed-terms-and-conditions'
+        ], { cwd: MYSTERIUM_DIR, env });
+      }
 
       this.running = true;
 
@@ -71,7 +96,7 @@ export class MysteriumProvider {
 
       setTimeout(() => {
         if (this.process && !this.process.killed) {
-          resolve({ success: true, pid: this.process.pid, provider: 'mysterium' });
+          resolve({ success: true, pid: this.process.pid, provider: 'mysterium', mode: this.inContainer ? 'inline' : 'docker' });
         } else {
           resolve({ success: false, error: 'Mysterium node exited immediately. Check logs.' });
         }
@@ -81,10 +106,12 @@ export class MysteriumProvider {
 
   async stop() {
     if (!this.process || !this.running) return { success: true, alreadyStopped: true };
-    try {
-      execSync('docker stop mysterium-node', { stdio: 'ignore' });
-      execSync('docker rm mysterium-node', { stdio: 'ignore' });
-    } catch {}
+    if (!this.inContainer) {
+      try {
+        execSync('docker stop mysterium-node', { stdio: 'ignore' });
+        execSync('docker rm mysterium-node', { stdio: 'ignore' });
+      } catch {}
+    }
     this.process.kill('SIGTERM');
     this.running = false;
     return { success: true, provider: 'mysterium' };
@@ -96,7 +123,7 @@ export class MysteriumProvider {
       running: this.running,
       pid: this.process?.pid || null,
       dataDir: this.dataDir,
-      resources: 'Docker-based, bandwidth (VPN relay)',
+      resources: this.inContainer ? 'Inline (container), bandwidth (VPN relay)' : 'Docker-based, bandwidth (VPN relay)',
       recentLogs: this.logs.slice(-10)
     };
   }

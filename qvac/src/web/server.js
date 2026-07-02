@@ -12,6 +12,8 @@ import { extractBoundary, readBody, parseMultipart } from './multipart.js';
 import { repoToMarkdown } from './repoDigest.js';
 import { PayoutRouter } from '../payout/PayoutRouter.js';
 import { marketApi } from '../api/marketApi.js';
+import { DeviceFingerprinter } from '../auth/DeviceFingerprinter.js';
+import { RemoteFingerprinter } from '../auth/RemoteFingerprinter.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,7 +30,9 @@ export class WebServer {
     this.port = process.env.PORT || 3002;
     this.corsOrigin = process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? null : '*');
     this.indexer = new MarkdownIndexer();
-    this.orchestrator = new NodeOrchestrator();
+    this.deviceFingerprinter = new DeviceFingerprinter();
+    this.remoteFingerprinter = new RemoteFingerprinter();
+    this.orchestrator = new NodeOrchestrator({ deviceFingerprinter: this.deviceFingerprinter });
     this.payoutRouter = new PayoutRouter(config?.multisig || {});
   }
 
@@ -336,6 +340,13 @@ Copy the topic hex and invite others to join.
   async handleStatus(req, res) {
     if (!this.nodeManager) { serviceUnavailable(res, 'Node manager not available'); return; }
     const status = this.nodeManager.getStatus();
+    // Include device fingerprint info if available
+    if (this.deviceFingerprinter?.getFingerprint()) {
+      status.deviceFingerprint = {
+        hash: this.deviceFingerprinter.getFingerprint().slice(0, 16) + '...',
+        trustScore: this.deviceFingerprinter.getTrustScore(),
+      };
+    }
     // If this node is a commander, include the fleet roster
     if (this.orchestrator?.role === 'commander' && this.orchestrator.getWorkers) {
       status.fleet = {
@@ -352,7 +363,59 @@ Copy the topic hex and invite others to join.
     const title = body.title?.trim();
     if (!prompt) { badRequest(res, 'Prompt is required'); return; }
 
-    // Use QVAC inference layer (@qvac/sdk) for AI writing — always local
+    // If an inference API key + URL is provided, route through the OpenAI-compatible endpoint
+    // instead of the local inference layer. This lets the AI Writer use a remote/private container.
+    if (body.inferenceKey && body.inferenceUrl) {
+      try {
+        const oaiRes = await fetch(`${body.inferenceUrl.replace(/\/$/, '')}/v1/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${body.inferenceKey}`,
+          },
+          body: JSON.stringify({
+            model: body.inferenceModel || 'chimera-local',
+            messages: [
+              { role: 'system', content: 'You are a helpful AI assistant that writes wiki articles.' },
+              { role: 'user', content: `Write a wiki article${title ? ` titled "${title}"` : ''} about: ${prompt}` },
+            ],
+            max_tokens: 1024,
+            temperature: 0.7,
+          }),
+        });
+        if (!oaiRes.ok) {
+          const errText = await oaiRes.text();
+          badRequest(res, `Inference API error: ${errText.slice(0, 200)}`);
+          return;
+        }
+        const oaiJson = await oaiRes.json();
+        const output = oaiJson.choices?.[0]?.message?.content || '';
+
+        const docId = `ai-${Date.now()}`;
+        const generatedTitle = title || output.split('\n')[0].replace(/^#\s*/, '').slice(0, 100);
+        const doc = {
+          id: docId,
+          title: generatedTitle,
+          body: output,
+          source: 'inference-api',
+          model: oaiJson.model || body.inferenceModel || 'chimera-local',
+          prompt,
+          createdAt: Date.now(),
+        };
+
+        if (this.nodeManager?.dataStore) await this.nodeManager.dataStore.appendAIDoc(doc);
+        const docPath = path.join(process.cwd(), 'data', 'ai-docs', `${docId}.md`);
+        await fs.mkdir(path.dirname(docPath), { recursive: true });
+        await fs.writeFile(docPath, `# ${doc.title}\n\n${doc.body}\n\n<!-- source: inference-api | model: ${doc.model} | prompt: ${prompt} -->\n`);
+        ok(res, doc);
+        return;
+      } catch (e) {
+        badRequest(res, `Inference API request failed: ${e.message}`);
+        return;
+      }
+    }
+
+    // Fall back to local QVAC inference layer
     const inference = this.nodeManager?.inferenceLayer;
     if (!inference) { serviceUnavailable(res, 'QVAC inference not initialized'); return; }
 
@@ -836,8 +899,8 @@ Copy the topic hex and invite others to join.
   /* ─── Orchestrator Handlers ─── */
 
   async handleCommanderRegister(req, res) {
-    const { workerUrl, evmAddress, casperProvider, capacity, inferenceUrl, inferenceReady } = await parseBody(req);
-    const result = this.orchestrator.registerWorker(workerUrl, { evmAddress, casperProvider, capacity, inferenceUrl, inferenceReady });
+    const { workerUrl, evmAddress, casperProvider, capacity, inferenceUrl, inferenceReady, deviceFingerprint, deviceTrustScore } = await parseBody(req);
+    const result = this.orchestrator.registerWorker(workerUrl, { evmAddress, casperProvider, capacity, inferenceUrl, inferenceReady, deviceFingerprint, deviceTrustScore });
     ok(res, result);
   }
 
@@ -880,12 +943,113 @@ Copy the topic hex and invite others to join.
   }
 
   _requireAuth(req, res) {
+    // Skip auth when explicitly disabled in config (privacy/SDK/container mode)
+    if (this.config?.auth?.required === false) return true;
     const auth = this.nodeManager?.authService;
     if (!auth) { serviceUnavailable(res, 'Auth service unavailable'); return false; }
     const header = req.headers['authorization'] || '';
     const token = header.replace(/^Bearer\s+/i, '');
     if (!token || !auth.validateToken(token)) { badRequest(res, 'Authentication required'); return false; }
     return true;
+  }
+
+  _isPrivacyMode() {
+    return this.config?.node?.privacyMode === true || process.env.CHIMERA_PRIVACY_MODE === 'true';
+  }
+
+  _maskEVM(addr) {
+    if (!addr || addr.length < 10) return '***';
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  }
+
+  /**
+   * handleAttestDevice — runs on new.localchimera.com
+   * Receives a fingerprint from a machine (generated by remote-injected code),
+   * signs it with the attestation secret, and returns a verifiable attestation.
+   * The machine cannot forge this signature.
+   */
+  async handleAttestDevice(req, res) {
+    const body = await parseBody(req);
+    const { fingerprint, trustScore, components, timestamp } = body;
+
+    if (!fingerprint || typeof fingerprint !== 'string') {
+      badRequest(res, 'fingerprint is required');
+      return;
+    }
+
+    // Validate timestamp is recent (within 5 minutes)
+    const now = Date.now();
+    if (!timestamp || Math.abs(now - timestamp) > 300_000) {
+      badRequest(res, 'attestation timestamp is stale or invalid');
+      return;
+    }
+
+    // Server-side trust score adjustment based on components
+    let adjustedTrustScore = trustScore ?? 0.5;
+    if (components?.vmDetection?.isVM) {
+      adjustedTrustScore = Math.min(adjustedTrustScore, 0.7);
+      this.logger.warn(`[attest] VM/container detected: ${components.vmDetection.signals?.join(', ')}`);
+    }
+    if (components?.botDetection?.isBot) {
+      adjustedTrustScore = Math.min(adjustedTrustScore, 0.2);
+      this.logger.warn(`[attest] Bot signals detected: ${components.botDetection.signals?.join(', ')}`);
+    }
+
+    // Create signed attestation
+    const attestationId = `att-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const expiresAt = now + 3600_000; // 1 hour validity
+    const attestationData = {
+      id: attestationId,
+      fingerprint,
+      trustScore: adjustedTrustScore,
+      timestamp: now,
+      expiresAt,
+      signedBy: 'new.localchimera.com',
+    };
+
+    // Sign with server's attestation key (HMAC with secret)
+    try {
+      const { createHmac } = await import('crypto');
+      const attestationKey = process.env.ATTESTATION_SECRET || 'chimera-attestation-v1';
+      const signature = createHmac('sha256', attestationKey)
+        .update(JSON.stringify(attestationData))
+        .digest('hex');
+      attestationData.signature = signature;
+    } catch (e) {
+      this.logger.warn(`[attest] Could not sign attestation: ${e.message}`);
+    }
+
+    this.logger.info(`[attest] Device attested: ${fingerprint.slice(0, 16)}... trust: ${(adjustedTrustScore * 100).toFixed(0)}% (id: ${attestationId})`);
+
+    ok(res, {
+      fingerprint,
+      trustScore: adjustedTrustScore,
+      attestation: attestationData,
+      signedBy: 'new.localchimera.com',
+      timestamp: now,
+      expiresAt,
+    });
+  }
+
+  /**
+   * handleFingerprint — runs on the MACHINE
+   * Fetches fingerprinting code from new.localchimera.com and runs it in a
+   * VM sandbox against this machine's hardware. Returns the raw fingerprint.
+   * The caller then sends this to new.localchimera.com for signed attestation.
+   */
+  async handleFingerprint(req, res) {
+    if (!this._requireAuth(req, res)) return;
+    const body = await parseBody(req).catch(() => ({}));
+    const moduleUrl = body.moduleUrl || null; // optional override, must be from allowed host
+
+    try {
+      this.logger.info('[fingerprint] On-demand fingerprinting requested — fetching code from new.localchimera.com...');
+      const result = await this.remoteFingerprinter.fetchAndRun(moduleUrl);
+      ok(res, result);
+    } catch (e) {
+      this.logger.warn(`[fingerprint] Remote fingerprinting failed: ${e.message}`);
+      serverError(res, `Fingerprinting failed: ${e.message}`);
+    }
   }
 
   async handleStart(req, res) {
@@ -906,15 +1070,78 @@ Copy the topic hex and invite others to join.
       return;
     }
 
+    // ─── Device fingerprint attestation ───
+    // The fingerprint is generated by fingerprint-attest.js served from new.localchimera.com
+    // and runs in the device's browser. The website collects the fingerprint, signs it with
+    // ATTESTATION_SECRET, and the frontend passes the signed attestation here.
+    // The machine NEVER fingerprints itself — it verifies the signature from new.localchimera.com.
+    let deviceFingerprint = null;
+    let deviceTrustScore = 0;
+    let deviceAttestation = null;
+
+    if (!this._isPrivacyMode()) {
+      const attested = body.attestedFingerprint;
+      if (attested && attested.fingerprint && attested.attestation) {
+        // Verify attestation hasn't expired
+        const now = Date.now();
+        if (attested.expiresAt && attested.expiresAt > now) {
+
+          // Verify the attestation signature — ensures it was signed by new.localchimera.com
+          let signatureValid = false;
+          try {
+            const { createHmac } = await import('crypto');
+            const attestationKey = process.env.ATTESTATION_SECRET || 'chimera-attestation-v1';
+            const expectedSignature = createHmac('sha256', attestationKey)
+              .update(JSON.stringify({
+                id: attested.attestation.id,
+                fingerprint: attested.attestation.fingerprint,
+                trustScore: attested.attestation.trustScore,
+                timestamp: attested.attestation.timestamp,
+                expiresAt: attested.attestation.expiresAt,
+                signedBy: attested.attestation.signedBy,
+              }))
+              .digest('hex');
+            signatureValid = (expectedSignature === attested.attestation.signature);
+          } catch (e) {
+            this.logger.warn(`[fingerprint] Signature verification error: ${e.message}`);
+          }
+
+          if (signatureValid) {
+            deviceFingerprint = attested.fingerprint;
+            deviceTrustScore = attested.trustScore ?? 0.5;
+            deviceAttestation = attested.attestation;
+            this.logger.info(`[fingerprint] Attested device verified: ${deviceFingerprint.slice(0, 16)}... trust: ${(deviceTrustScore * 100).toFixed(0)}% (signed by: ${attested.signedBy || attested.attestation.signedBy})`);
+
+            if (deviceTrustScore < 0.3) {
+              this.logger.warn(`[fingerprint] Low trust score (${(deviceTrustScore * 100).toFixed(0)}%) — device may be restricted from high-value jobs`);
+            }
+          } else {
+            this.logger.warn(`[fingerprint] Attestation signature INVALID — rejecting. Device must re-attest via new.localchimera.com`);
+          }
+        } else {
+          this.logger.warn(`[fingerprint] Attestation expired or missing expiry — device must re-attest via new.localchimera.com`);
+        }
+      } else {
+        this.logger.warn(`[fingerprint] No attested fingerprint provided — device must attest via new.localchimera.com first`);
+      }
+    }
+
     if (this.nodeManager.minerManager) {
       this.nodeManager.minerManager.evmAddress = machineOwner;
-      this.logger.info(`[miner] Machine owner EVM: ${machineOwner}`);
+      this.logger.info(`[miner] Machine owner EVM: ${this._isPrivacyMode() ? this._maskEVM(machineOwner) : machineOwner}`);
 
       // Propagate to already-constructed miners so they start with the correct address
       const miners = this.nodeManager.minerManager.miners;
       for (const name of ['chutes', 'routstr']) {
         const m = miners.get(name);
         if (m) m.evmAddress = machineOwner;
+      }
+
+      // Propagate device fingerprint to CasperEscrowBridge for on-chain result verification
+      const casperMiner = miners.get('casper');
+      if (casperMiner && deviceFingerprint) {
+        casperMiner.deviceFingerprint = deviceFingerprint;
+        this.logger.info(`[fingerprint] Propagated to Casper escrow bridge`);
       }
 
       // Persist to config.json so the address survives restarts
@@ -930,7 +1157,7 @@ Copy the topic hex and invite others to join.
       }
       if (appDev) {
         this.nodeManager.minerManager.appDeveloperEVM = appDev;
-        this.logger.info(`[miner] App developer EVM: ${appDev}`);
+        this.logger.info(`[miner] App developer EVM: ${this._isPrivacyMode() ? this._maskEVM(appDev) : appDev}`);
       }
       if (body.revenueSplit) {
         this.nodeManager.minerManager.revenueSplit = body.revenueSplit;
@@ -945,25 +1172,33 @@ Copy the topic hex and invite others to join.
     }
 
     // ─── Auto-register this machine on the routing network ───
-    // Use configured publicUrl, or X-Forwarded-Host / Host header, or fallback to localhost
-    const host = req.headers['x-forwarded-host'] || req.headers['host'] || `localhost:${this.port}`;
-    const proto = req.headers['x-forwarded-proto'] || 'http';
-    const configPublicUrl = this.nodeManager?.config?.node?.publicUrl || '';
-    const nodeUrl = configPublicUrl || `${proto}://${host}`;
+    // In privacy mode, skip orchestrator registration to avoid exposing host network identity
     const providerHash = body.casperProvider || '';
     const evmAddr = machineOwner || appDev || '';
-    this.orchestrator.registerWorker(nodeUrl, {
-      evmAddress: evmAddr,
-      casperProvider: providerHash,
-      capacity: body.capacity || 1,
-      inferenceUrl: `${nodeUrl}/v1/chat/completions`,
-      inferenceReady: true,
-    });
-    this.logger.info(`[router] Auto-registered node ${nodeUrl} (EVM: ${evmAddr}, Provider: ${providerHash})`);
+    let nodeUrl = '';
+
+    if (!this._isPrivacyMode()) {
+      // Use configured publicUrl, or X-Forwarded-Host / Host header, or fallback to localhost
+      const host = req.headers['x-forwarded-host'] || req.headers['host'] || `localhost:${this.port}`;
+      const proto = req.headers['x-forwarded-proto'] || 'http';
+      const configPublicUrl = this.nodeManager?.config?.node?.publicUrl || '';
+      nodeUrl = configPublicUrl || `${proto}://${host}`;
+      this.orchestrator.registerWorker(nodeUrl, {
+        evmAddress: evmAddr,
+        casperProvider: providerHash,
+        capacity: body.capacity || 1,
+        inferenceUrl: `${nodeUrl}/v1/chat/completions`,
+        inferenceReady: true,
+      });
+      this.logger.info(`[router] Auto-registered node ${nodeUrl} (EVM: ${evmAddr}, Provider: ${providerHash})`);
+    } else {
+      this.logger.info(`[router] Privacy mode — skipping orchestrator registration`);
+    }
 
     // ─── Auto-register provider on all Casper contracts ───
+    // In privacy mode, skip device profiling to avoid exposing hardware info
     let casperResult = null;
-    if (this.nodeManager.casperRegistrar) {
+    if (this.nodeManager.casperRegistrar && !this._isPrivacyMode()) {
       try {
         const deviceProfile = {
           hasGpu: false,
@@ -973,6 +1208,9 @@ Copy the topic hex and invite others to join.
           storageMb: 10240,
           bandwidthMbps: 100,
           models: this.config?.inference?.qvac?.models || ['llama-3.2-1b-instruct'],
+          // Device fingerprint for reputation tracking (untrusted device attestation)
+          deviceFingerprint: deviceFingerprint,
+          deviceTrustScore: deviceTrustScore,
         };
         casperResult = await this.nodeManager.casperRegistrar.registerAll({
           peerId: this.config?.node?.id || 'chimera-node',
@@ -984,9 +1222,19 @@ Copy the topic hex and invite others to join.
         this.logger.warn(`[casper] Auto-registration failed: ${e.message}`);
         casperResult = { registered: [], errors: [e.message] };
       }
+    } else if (this.nodeManager.casperRegistrar && this._isPrivacyMode()) {
+      this.logger.info(`[casper] Privacy mode — skipping device profiling and contract registration`);
     }
 
-    ok(res, { message: 'Mining started', running: true, registered: { url: nodeUrl, evmAddress: evmAddr, casperProvider: providerHash }, casper: casperResult });
+    const registeredInfo = this._isPrivacyMode()
+      ? { privacyMode: true, evmAddress: this._maskEVM(evmAddr) }
+      : { url: nodeUrl, evmAddress: evmAddr, casperProvider: providerHash };
+
+    ok(res, {
+      message: 'Mining started', running: true, registered: registeredInfo, casper: casperResult,
+      privacyMode: this._isPrivacyMode(),
+      deviceFingerprint: deviceFingerprint ? { hash: deviceFingerprint.slice(0, 16) + '...', trustScore: Math.round(deviceTrustScore * 100) / 100 } : null,
+    });
   }
 
   async handleStop(req, res) {
@@ -1137,6 +1385,154 @@ Copy the topic hex and invite others to join.
 
   // ─── OpenAI-compatible proxy (for Routstr upstream) ───
 
+  /**
+   * Validate an inference API key from the Authorization header.
+   * Returns the key entry object if valid, or null.
+   * In privacy mode with auth disabled, skips key validation.
+   */
+  async _requireInferenceKey(req, res) {
+    // If auth is explicitly disabled (privacy/container mode), allow without key
+    if (this.config?.auth?.required === false) return { id: 'anonymous', name: 'anonymous', rateLimitRpm: 0, modelAllowList: null };
+
+    const header = req.headers['authorization'] || '';
+    const token = header.replace(/^Bearer\s+/i, '');
+    if (!token) {
+      badRequest(res, 'Inference API key or access token required (Authorization: Bearer chim_... or chim_access_...)');
+      return null;
+    }
+
+    // Check for paid access token first
+    if (token.startsWith('chim_access_')) {
+      const am = this.nodeManager?.inferenceAccessManager;
+      if (!am) {
+        badRequest(res, 'Inference access manager not available');
+        return null;
+      }
+      const session = am.validate(token);
+      if (!session) {
+        badRequest(res, 'Invalid, expired, or depleted access token');
+        return null;
+      }
+      return { id: session.sessionId, name: 'access-token', rateLimitRpm: 0, modelAllowList: session.modelAllowList, _accessToken: token, _session: session };
+    }
+
+    // Fall back to inference API key
+    const mgr = this.nodeManager?.inferenceApiKeyManager;
+    if (!mgr) {
+      // Fall back to session auth if no key manager
+      if (!this._requireAuth(req, res)) return null;
+      return { id: 'session', name: 'session', rateLimitRpm: 0, modelAllowList: null };
+    }
+
+    const keyEntry = await mgr.validateKey(token);
+    if (!keyEntry) {
+      badRequest(res, 'Invalid or revoked inference API key');
+      return null;
+    }
+    return keyEntry;
+  }
+
+  async handleInferenceKeyCreate(req, res) {
+    if (!this._requireAuth(req, res)) return;
+    const mgr = this.nodeManager?.inferenceApiKeyManager;
+    if (!mgr) { serviceUnavailable(res, 'Inference API key manager not available'); return; }
+    const body = await parseBody(req);
+    const result = await mgr.createKey({
+      name: body.name,
+      rateLimitRpm: body.rateLimitRpm,
+      modelAllowList: body.modelAllowList,
+    });
+    ok(res, result);
+  }
+
+  handleInferenceKeyList(req, res) {
+    if (!this._requireAuth(req, res)) return;
+    const mgr = this.nodeManager?.inferenceApiKeyManager;
+    if (!mgr) { serviceUnavailable(res, 'Inference API key manager not available'); return; }
+    ok(res, { keys: mgr.listKeys() });
+  }
+
+  async handleInferenceKeyRevoke(req, res) {
+    if (!this._requireAuth(req, res)) return;
+    const mgr = this.nodeManager?.inferenceApiKeyManager;
+    if (!mgr) { serviceUnavailable(res, 'Inference API key manager not available'); return; }
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const params = extractRouteParams(url.pathname);
+    const revoked = await mgr.revokeKey(params.id);
+    if (!revoked) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Key not found' })); return; }
+    ok(res, { revoked: true, id: params.id });
+  }
+
+  handleInferenceKeyInfo(req, res) {
+    if (!this._requireAuth(req, res)) return;
+    const mgr = this.nodeManager?.inferenceApiKeyManager;
+    if (!mgr) { serviceUnavailable(res, 'Inference API key manager not available'); return; }
+    ok(res, {
+      active: mgr.listKeys().length,
+      prefix: 'chim_',
+      header: 'Authorization: Bearer chim_...',
+      compatible: 'OpenAI-compatible — use as standard API key with /v1/chat/completions',
+    });
+  }
+
+  // ─── Inference Access (paid session tokens) ───
+
+  async handleInferenceAccessPurchase(req, res) {
+    const am = this.nodeManager?.inferenceAccessManager;
+    if (!am) { serviceUnavailable(res, 'Inference access manager not available'); return; }
+    const body = await parseBody(req);
+    const { buyerAddress, amountUSDT, ttlSeconds, modelAllowList } = body;
+    if (!amountUSDT || amountUSDT <= 0) {
+      badRequest(res, 'amountUSDT must be a positive number');
+      return;
+    }
+    try {
+      const result = await am.purchase({ buyerAddress, amountUSDT, ttlSeconds, modelAllowList });
+      ok(res, result);
+    } catch (e) {
+      badRequest(res, e.message);
+    }
+  }
+
+  handleInferenceAccessPricing(req, res) {
+    const am = this.nodeManager?.inferenceAccessManager;
+    if (!am) { serviceUnavailable(res, 'Inference access manager not available'); return; }
+    ok(res, am.getPricing());
+  }
+
+  handleInferenceAccessStatus(req, res) {
+    const am = this.nodeManager?.inferenceAccessManager;
+    if (!am) { serviceUnavailable(res, 'Inference access manager not available'); return; }
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const sessionId = url.searchParams.get('sessionId');
+    if (sessionId) {
+      const status = am.getStatus(sessionId);
+      if (!status) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Session not found' })); return; }
+      ok(res, status);
+    } else {
+      ok(res, am.getStats());
+    }
+  }
+
+  handleInferenceAccessSessions(req, res) {
+    if (!this._requireAuth(req, res)) return;
+    const am = this.nodeManager?.inferenceAccessManager;
+    if (!am) { serviceUnavailable(res, 'Inference access manager not available'); return; }
+    ok(res, { sessions: am.listActive() });
+  }
+
+  async handleInferenceAccessRevoke(req, res) {
+    if (!this._requireAuth(req, res)) return;
+    const am = this.nodeManager?.inferenceAccessManager;
+    if (!am) { serviceUnavailable(res, 'Inference access manager not available'); return; }
+    const body = await parseBody(req);
+    const { sessionId } = body;
+    if (!sessionId) { badRequest(res, 'sessionId required'); return; }
+    const revoked = am.revoke(sessionId);
+    if (!revoked) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Session not found' })); return; }
+    ok(res, { revoked: true, sessionId });
+  }
+
   async handleOpenAIModels(req, res) {
     ok(res, {
       object: 'list',
@@ -1149,12 +1545,28 @@ Copy the topic hex and invite others to join.
   }
 
   async handleOpenAIChat(req, res) {
+    // Authenticate via inference API key (or skip in privacy mode with auth disabled)
+    const keyEntry = await this._requireInferenceKey(req, res);
+    if (!keyEntry) return;
+
     const body = await parseBody(req);
     const messages = body.messages || [];
     const stream = body.stream === true;
     const model = body.model || 'chimera-local';
     const maxTokens = body.max_tokens || 512;
     const temperature = body.temperature || 0.7;
+
+    // Check model allow-list if set on the key or access session
+    const mgr = this.nodeManager?.inferenceApiKeyManager;
+    const am = this.nodeManager?.inferenceAccessManager;
+    if (keyEntry._session && am && !am.isModelAllowed(keyEntry._session, model)) {
+      badRequest(res, `Model '${model}' not allowed for this access token`);
+      return;
+    }
+    if (mgr && !keyEntry._accessToken && !mgr.isModelAllowed(keyEntry, model)) {
+      badRequest(res, `Model '${model}' not allowed for this API key`);
+      return;
+    }
 
     // Convert messages array to a single prompt
     const systemMsg = messages.find(m => m.role === 'system')?.content || '';
@@ -1215,6 +1627,13 @@ Copy the topic hex and invite others to join.
         res.write('data: [DONE]\n\n');
         res.end();
       } else {
+        const totalTokens = Math.ceil((prompt.length + (result.output || '').length) / 4);
+
+        // Charge access token if present
+        if (keyEntry._accessToken && am) {
+          am.charge(keyEntry._accessToken, totalTokens);
+        }
+
         ok(res, {
           id: requestId,
           object: 'chat.completion',
@@ -1226,9 +1645,9 @@ Copy the topic hex and invite others to join.
             finish_reason: 'stop'
           }],
           usage: {
-            prompt_tokens: prompt.length / 4,
-            completion_tokens: (result.output || '').length / 4,
-            total_tokens: (prompt.length + (result.output || '').length) / 4
+            prompt_tokens: Math.ceil(prompt.length / 4),
+            completion_tokens: Math.ceil((result.output || '').length / 4),
+            total_tokens: totalTokens
           }
         });
       }

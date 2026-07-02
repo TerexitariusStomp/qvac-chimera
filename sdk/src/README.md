@@ -4,7 +4,7 @@ Source for `@chimera/sdk`.
 
 ## Subdirectories
 
-- `miners/` — Provider implementations (BTT AI, Golem, Anyone Protocol, Mysterium, BTFS, Casper, Earnidle)
+- `miners/` — Provider implementations (BTT AI, Golem, Anyone Protocol, Mysterium, BTFS, Casper)
 - `useChimera.js` — React hook for the SDK
 - `ChimeraSDK.js` — Main SDK class
 

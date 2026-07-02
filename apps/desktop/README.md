@@ -95,9 +95,22 @@ The Go supervisor exposes a local HTTP API on port `9876`:
 | `/stop` | POST | Stop and remove container |
 | `/logs` | GET | Plain-text container logs |
 
-## Security
+## Security & Privacy
 
 - The desktop UI never calls Docker directly — only the supervisor does.
 - The supervisor uses the Docker CLI (not the socket API) for simplicity.
-- The container runs least-privilege with isolated volumes.
+- The container runs least-privilege with isolated named volumes.
+- **Privacy hardening** — the supervisor starts the container with:
+  - Random hostname (anonymized on every start)
+  - Bridge networking only (no host network mode)
+  - `--security-opt no-new-privileges:true`
+  - `--cap-drop ALL` (all Linux capabilities dropped)
+  - Named volumes: `chimera-data`, `openviking-data`, `chimera-node-data` (no host bind mounts)
+  - `CHIMERA_PRIVACY_MODE=true` environment variable — the node inside activates privacy mode:
+    - Anonymous node ID in logs and status responses
+    - Skips orchestrator registration (no host IP/hostname exposed)
+    - Skips device profiling (no CPU/RAM specs sent to external contracts)
+    - Masks EVM addresses in log output
+    - Disables P2P swarm
+- **Machine-id scrubbing** — the Docker image scrubs `/etc/machine-id` and `/var/lib/dbus/machine-id` at build time so the container cannot leak the host's machine identifier.
 - Future: add policy engine for per-workload allowlists.

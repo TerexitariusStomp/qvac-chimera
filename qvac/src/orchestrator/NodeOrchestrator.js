@@ -75,8 +75,10 @@ export class CommanderOrchestrator {
       capacity: meta.capacity ?? existing.capacity ?? 1,
       inferenceUrl: meta.inferenceUrl || existing.inferenceUrl || `${url}/v1/chat/completions`,
       inferenceReady: meta.inferenceReady ?? existing.inferenceReady ?? false,
+      deviceFingerprint: meta.deviceFingerprint || existing.deviceFingerprint || '',
+      deviceTrustScore: meta.deviceTrustScore ?? existing.deviceTrustScore ?? 1.0,
     });
-    this.logger.info(`Worker registered: ${url} (total: ${this.workers.size})`);
+    this.logger.info(`Worker registered: ${url} (total: ${this.workers.size}, trust: ${((meta.deviceTrustScore ?? existing.deviceTrustScore ?? 1.0) * 100).toFixed(0)}%)`);
     return { ok: true, workers: this.workers.size };
   }
 
@@ -92,6 +94,8 @@ export class CommanderOrchestrator {
       capacity: w.capacity ?? 1,
       inferenceUrl: w.inferenceUrl || '',
       inferenceReady: w.inferenceReady ?? false,
+      deviceFingerprint: w.deviceFingerprint || '',
+      deviceTrustScore: w.deviceTrustScore ?? 1.0,
     }));
   }
 
@@ -108,8 +112,12 @@ export class CommanderOrchestrator {
   }
 
   /**
-   * Route an inference request to the least-loaded available worker.
-   * Falls back to local inference if no workers are available.
+   * Route an inference request to the best available worker.
+   * Selection criteria (in order):
+   *   1. Filter: online + inference ready
+   *   2. Exclude: trust score < 0.3 (untrusted devices)
+   *   3. Sort: trust score (descending) as primary, active load (ascending) as secondary
+   * This ensures high-trust devices get priority for inference tasks.
    */
   async routeInference(request) {
     const workers = this.getWorkers()
@@ -119,11 +127,19 @@ export class CommanderOrchestrator {
       return { fallback: true, reason: 'no_inference_workers', error: 'No workers with inference available' };
     }
 
-    // Sort by active load (ascending) — pick least busy
-    workers.sort((a, b) => (a.activeJobs ?? 0) - (b.activeJobs ?? 0));
-    const worker = workers[0];
+    // Filter out untrusted devices (trust < 0.3) unless they're the only option
+    const trustedWorkers = workers.filter(w => (w.deviceTrustScore ?? 1.0) >= 0.3);
+    const pool = trustedWorkers.length > 0 ? trustedWorkers : workers;
 
-    this.logger.info(`Routing inference to worker: ${worker.url} (activeJobs: ${worker.activeJobs})`);
+    // Sort by trust score (descending), then by active load (ascending)
+    pool.sort((a, b) => {
+      const trustDiff = (b.deviceTrustScore ?? 1.0) - (a.deviceTrustScore ?? 1.0);
+      if (Math.abs(trustDiff) > 0.01) return trustDiff;
+      return (a.activeJobs ?? 0) - (b.activeJobs ?? 0);
+    });
+    const worker = pool[0];
+
+    this.logger.info(`Routing inference to worker: ${worker.url} (trust: ${((worker.deviceTrustScore ?? 1.0) * 100).toFixed(0)}%, activeJobs: ${worker.activeJobs})`);
 
     const w = this.workers.get(worker.url);
     if (w) w.activeJobs += 1;
@@ -178,9 +194,16 @@ export class CommanderOrchestrator {
     const job = this.jobQueue.find(j => j.status === 'pending');
     if (!job) return { jobs: [] };
 
+    // Check trust score before assigning high-value jobs
+    const w = this.workers.get(url);
+    const trustScore = w?.deviceTrustScore ?? 1.0;
+    if (trustScore < 0.3) {
+      this.logger.warn(`Worker ${url} has low trust (${(trustScore * 100).toFixed(0)}%) — job assignment deferred`);
+      return { jobs: [], reason: 'low_trust' };
+    }
+
     job.status = 'running';
     job.assignedTo = url;
-    const w = this.workers.get(url);
     if (w) w.activeJobs += 1;
 
     return { jobs: [{ id: job.id, topic: job.topic, category: job.category, tags: job.tags }] };
@@ -244,13 +267,16 @@ export class CommanderOrchestrator {
    ───────────────────────────────────────────────────────────── */
 
 export class WorkerOrchestrator {
-  constructor({ commanderUrl, localPort = 3000 } = {}) {
+  constructor({ commanderUrl, localPort = 3000, deviceFingerprinter = null } = {}) {
     this.logger       = new Logger('Worker');
     this.role         = 'worker';
     this.commanderUrl = commanderUrl ? normalizeUrl(commanderUrl) : '';
     this.localPort    = localPort;
     this.stopFlag     = false;
     this._timers      = [];
+    this._deviceFingerprinter = deviceFingerprinter;
+    this._deviceFingerprint = null;
+    this._deviceTrustScore = 1.0;
   }
 
   start() {
@@ -291,6 +317,28 @@ export class WorkerOrchestrator {
 
   async _register() {
     try {
+      // Fingerprint via /api/fingerprint endpoint — loads remote code from new.localchimera.com
+      // The machine does NOT fingerprint itself; the code is injected from the trusted server
+      if (!this._deviceFingerprint) {
+        try {
+          const fpRes = await fetch(`http://localhost:${this.localPort}/api/fingerprint`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          });
+          if (fpRes.ok) {
+            const fpData = await fpRes.json();
+            if (fpData.success) {
+              this._deviceFingerprint = fpData.data.fingerprint;
+              this._deviceTrustScore = fpData.data.trustScore;
+              this.logger.info(`Device fingerprint (remote): ${this._deviceFingerprint.slice(0, 16)}... (trust: ${(this._deviceTrustScore * 100).toFixed(0)}%)`);
+            }
+          }
+        } catch (e) {
+          this.logger.warn(`Remote fingerprinting failed: ${e.message}`);
+        }
+      }
+
       const inferenceUrl = `http://${getLocalIp()}:${this.localPort}/v1/chat/completions`;
       const res = await fetch(`${this.commanderUrl}/api/commander/register`, {
         method: 'POST',
@@ -300,6 +348,8 @@ export class WorkerOrchestrator {
           inferenceUrl,
           inferenceReady: true,
           capacity: 1,
+          deviceFingerprint: this._deviceFingerprint || '',
+          deviceTrustScore: this._deviceTrustScore ?? 1.0,
         }),
       });
       const json = await res.json();
@@ -356,6 +406,7 @@ export function createOrchestrator(config = {}) {
     return new WorkerOrchestrator({
       commanderUrl: config.commanderUrl ?? process.env.COMMANDER_URL ?? '',
       localPort:    config.localPort    ?? parseInt(process.env.PORT ?? '3000', 10),
+      deviceFingerprinter: config.deviceFingerprinter ?? null,
     }).start();
   }
 

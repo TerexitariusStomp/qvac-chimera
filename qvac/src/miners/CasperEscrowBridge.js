@@ -10,6 +10,10 @@ const DEFAULT_RPC_URL = 'https://node.testnet.casper.network/rpc';
 const TESTNET_CONTRACTS = {
   escrowVault: 'b8e8b7e087ec4ad7afcdc30460d39d5b6a8249875cd1e2da0716b89d710fda40',
   computeRegistry: 'bb3044c3bbefc669c4c7c41a10cb645f5e160bfab62883b34e08d0a99b981d07',
+  inferenceMarket: '663812cfe4103b9d1584e3caccf7be9188e4c6c5f77851dacb64b8f308947f82',
+  storageMarket: '1e884efc1a97e698149b91e5ffb7d1e8cda85598a4db75ac5b3be379418a2dca',
+  computeMarket: 'c1e96f072f632d681106d367cd34b4ec9d86258f10106c2cb9dcf23306c53af8',
+  bandwidthMarket: '4361a385408288194b54c7297e7f1754833f31a2ae88f3d1c5eabee4798897a1',
   orderBook: 'cecfc698508213f63e7e7fe6f0729b090af23c87c7e444db7fc90be73736e399',
   reputation: 'fd0bf02161433c13c3070b7d0ea383c976bcbc799413638b4fedc703d4efa1db',
 };
@@ -85,6 +89,7 @@ export class CasperEscrowBridge {
     this.relayUrl = config.relayUrl || process.env.CASPER_RELAY_URL || '';
     this.relayToken = config.relayToken || process.env.CASPER_RELAY_TOKEN || '';
     this.useRelay = false;
+    this.deviceFingerprint = null;
   }
 
   get rpcUrl() {
@@ -904,11 +909,13 @@ export class CasperEscrowBridge {
   }
 
   async providerComplete(jobId, responseHash) {
+    // Append device fingerprint to response hash for on-chain verification
+    const fpSuffix = this.deviceFingerprint ? `:fp:${this.deviceFingerprint.slice(0, 16)}` : '';
     await this.sendDeploy(this.contracts.escrowVault, 'provider_complete', {
       job_id: CLValue.newCLString(jobId),
-      response_hash: CLValue.newCLString(responseHash),
+      response_hash: CLValue.newCLString(responseHash + fpSuffix),
     });
-    this.logger.info(`provider_complete sent for ${jobId}`);
+    this.logger.info(`provider_complete sent for ${jobId}${fpSuffix ? ' (fp: ' + this.deviceFingerprint.slice(0, 8) + ')' : ''}`);
   }
 
   async claimPayment(jobId) {

@@ -2,8 +2,12 @@
  * BttAiMinerProvider — Auto-setup and run BTT AI Labs miner-cli.
  *
  * GPU-based AI inference miner for vLLM/SGLang tasking networks.
- * Requires NVIDIA GPU + Docker + NVIDIA Container Toolkit.
- * NOT for CPU-only machines.
+ * Requires NVIDIA GPU.
+ *
+ * Two modes:
+ *   - Host mode (default): requires Docker + NVIDIA Container Toolkit for vLLM
+ *   - Container mode (CHIMERA_PRIVACY_MODE=true): runs `miner-cli` directly.
+ *     The binary and GPU drivers must be pre-installed in the Dockerfile.
  */
 
 import { spawn, execSync } from 'child_process';
@@ -23,8 +27,10 @@ export class BttAiMinerProvider {
   }
 
   async init() {
+    this.inContainer = process.env.CHIMERA_PRIVACY_MODE === 'true';
+
     const exists = await fs.access(BTT_DIR).then(() => true).catch(() => false);
-    if (!exists) throw new Error('BTT AI miner not found. Clone: git submodule add https://github.com/BTT-AI-labs/miner-cli.git upstream/btt-ai-miner');
+    if (!exists && !this.inContainer) throw new Error('BTT AI miner not found. Clone: git submodule add https://github.com/BTT-AI-labs/miner-cli.git upstream/btt-ai-miner');
 
     // Check for Python 3.10+
     try {
@@ -38,11 +44,13 @@ export class BttAiMinerProvider {
       throw new Error('Python 3.10+ not available');
     }
 
-    // Check for Docker
-    try {
-      execSync('docker --version', { stdio: 'ignore' });
-    } catch {
-      throw new Error('Docker not available');
+    // In container mode, skip Docker check — miner-cli runs directly
+    if (!this.inContainer) {
+      try {
+        execSync('docker --version', { stdio: 'ignore' });
+      } catch {
+        throw new Error('Docker not available');
+      }
     }
 
     // Check for NVIDIA GPU
@@ -112,7 +120,7 @@ export class BttAiMinerProvider {
       running: this.running,
       pid: this.process?.pid || null,
       engine: this.engine,
-      resources: 'GPU required (NVIDIA), Docker-based',
+      resources: this.inContainer ? 'Inline (container), GPU required (NVIDIA)' : 'GPU required (NVIDIA), Docker-based',
       recentLogs: this.logs.slice(-10)
     };
   }

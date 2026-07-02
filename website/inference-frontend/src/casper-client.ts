@@ -17,10 +17,10 @@ export interface ContractConfig {
 }
 
 export const CONTRACTS: ContractConfig = {
-  inferenceMarket: 'b8e8b7e087ec4ad7afcdc30460d39d5b6a8249875cd1e2da0716b89d710fda40',
-  storageMarket: '9ebcfa010b03d558bd2100ea47b65c5e3fdbb7a51a32f7288b383cdd0318911f',
-  computeMarket: '3317e67a53dce2277ed3be64b78a94abf87f2dea97e7456bc59045faa9d7e533',
-  bandwidthMarket: 'a8c075a8724264c3a28fc662f51a427c53ece4e271e692ac03bb88654be6058a',
+  inferenceMarket: '663812cfe4103b9d1584e3caccf7be9188e4c6c5f77851dacb64b8f308947f82',
+  storageMarket: '1e884efc1a97e698149b91e5ffb7d1e8cda85598a4db75ac5b3be379418a2dca',
+  computeMarket: 'c1e96f072f632d681106d367cd34b4ec9d86258f10106c2cb9dcf23306c53af8',
+  bandwidthMarket: '4361a385408288194b54c7297e7f1754833f31a2ae88f3d1c5eabee4798897a1',
   computeRegistry: 'bb3044c3bbefc669c4c7c41a10cb645f5e160bfab62883b34e08d0a99b981d07',
   escrowVault: 'b8e8b7e087ec4ad7afcdc30460d39d5b6a8249875cd1e2da0716b89d710fda40',
 };

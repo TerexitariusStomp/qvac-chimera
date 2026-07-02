@@ -74,7 +74,7 @@ def generate_popup(org):
         parts.append(' '.join(badges) + '<br>')
     lines = []
     if org.website:
-        lines.append('<a href="' + html.escape(org.website) + '" target="_blank">Website</a>')
+        lines.append('<a href="' + html.escape(org.website) + '" target="_blank" rel="noopener noreferrer">Website</a>')
     if org.email:
         lines.append('<a href="mailto:' + html.escape(org.email) + '">Email</a>')
     if org.phone:
@@ -161,7 +161,7 @@ async def organizations_geojson(
                     "id": org.id,
                     "name": org.name,
                     "description": org.description or "",
-                    "popup": org.popup_html if org.popup_html else generate_popup(org),
+                    "popup": generate_popup(org),
                     "source": org.source,
                     "country": org.country or "",
                     "website": org.website or "",
